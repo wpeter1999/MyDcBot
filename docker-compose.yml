@@ -1,0 +1,33 @@
+version: '3.9'
+
+services:
+  workspace:
+    build: .
+    container_name: discord-bot-workspace
+    working_dir: /workspace
+    volumes:
+      - .:/workspace:delegated
+      - /go/pkg/mod
+    env_file:
+      - .env
+    environment:
+      - GUILD_ID
+    tty: true
+    stdin_open: true
+    command: tail -f /dev/null
+
+  bot:
+    build: .
+    container_name: discord-bot-dev
+    working_dir: /workspace
+    volumes:
+      - .:/workspace:delegated
+      - /go/pkg/mod
+    env_file:
+      - .env
+    environment:
+      - GUILD_ID
+    command: go run ./cmd/bot
+    depends_on:
+      - workspace
+    restart: unless-stopped

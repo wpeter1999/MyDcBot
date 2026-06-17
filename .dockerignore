@@ -1,0 +1,14 @@
+# Go
+**/bin/
+**/obj/
+**/out/
+**/*.exe
+**/*.dll
+**/*.so
+**/*.dylib
+**/*.test
+
+# Environment
+.env
+
+# Docker

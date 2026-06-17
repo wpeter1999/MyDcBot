@@ -1,0 +1,18 @@
+# Go
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+vendor/
+
+# Environment
+.env
+
+# Claude Code local instructions
+CLAUDE.md
+.claude/
+
+# Hermes agent local instructions
+.hermes/
