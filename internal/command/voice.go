@@ -14,9 +14,9 @@ import (
 
 // voiceManager 管理 Discord 語音連線和播放迴圈。
 type voiceManager struct {
-	mu               sync.Mutex
-	activePlayback   map[string]context.CancelFunc // guildID -> cancel function
-	pipeline         audio.Pipeline
+	mu             sync.Mutex
+	activePlayback map[string]context.CancelFunc // guildID -> cancel function
+	pipeline       audio.Pipeline
 }
 
 var globalVoiceManager = &voiceManager{

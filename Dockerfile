@@ -21,12 +21,11 @@ RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o 
 COPY go.mod go.sum ./
 RUN go mod download
 
-# 安裝開發時可以使用的工具（可選）
-RUN go install github.com/githubnemo/CompileDaemon@latest
-
-# 預設工作目錄為 /workspace
+# 複製專案檔案
 COPY . .
 
-# 預設啟動一個空閒容器，方便進入 shell 或執行指令
-CMD ["tail", "-f", "/dev/null"]
+# 安裝 CompileDaemon（熱重載工具）
+RUN go install github.com/githubnemo/CompileDaemon@latest
 
+# 預設指令
+CMD ["CompileDaemon", "-build=go build -o bin/bot ./cmd/bot", "-command=./bin/bot"]
