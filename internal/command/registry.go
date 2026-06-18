@@ -5,4 +5,10 @@ package command
 var CommandRegistry = []*BotCommand{
 	PingCommand,
 	WeatherCommand,
+	PlayCommand,
+	SkipCommand,
+	PauseCommand,
+	QueueCommand,
+	StopCommand,
+	NowPlayingCommand,
 }
