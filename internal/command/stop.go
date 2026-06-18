@@ -18,6 +18,9 @@ func stopCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
+	// 停止播放迴圈
+	StopPlayback(i.GuildID)
+
 	removed := musicService.RemovePlayer(i.GuildID)
 	if removed {
 		respond(s, i, "⏹️ 已停止播放並清空佇列。")

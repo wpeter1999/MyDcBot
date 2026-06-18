@@ -84,6 +84,14 @@ func playCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
+	// 嘗試加入語音頻道並啟動播放（如果尚未播放）
+	if err := JoinVoiceAndPlay(s, i.GuildID, i.Member.User.ID, player); err != nil {
+		// 無法加入語音頻道（例如：使用者不在語音頻道）
+		message := fmt.Sprintf("✅ 已加入佇列：**%s**\n⚠️ %v", song.Title, err)
+		respond(s, i, message)
+		return
+	}
+
 	message := fmt.Sprintf("✅ 已加入佇列：**%s**", song.Title)
 	respond(s, i, message)
 }

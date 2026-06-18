@@ -1,6 +1,28 @@
 package player
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
+
+// PlaybackController 定義播放控制介面，用於啟動播放迴圈。
+type PlaybackController interface {
+	// StartPlayback 啟動播放迴圈，從佇列取歌並播放。
+	// 會阻塞直到播放器停止或 context 被取消。
+	StartPlayback(ctx context.Context, vc VoiceConnection, pipeline AudioPipeline) error
+}
+
+// VoiceConnection 抽象 Discord 語音連線。
+type VoiceConnection interface {
+	Speaking(speaking bool) error
+	OpusSend() chan<- []byte
+	Disconnect() error
+}
+
+// AudioPipeline 抽象音訊播放管道。
+type AudioPipeline interface {
+	Play(ctx context.Context, url string, vc VoiceConnection) error
+}
 
 // GuildPlayer 保存單一 Discord Guild 的播放狀態與控制訊號。
 type GuildPlayer struct {
@@ -146,3 +168,64 @@ func (p *GuildPlayer) IsStopped() bool {
 func (p *GuildPlayer) Done() <-chan struct{} {
 	return p.done
 }
+
+// StartPlayback 實作 PlaybackController 介面，啟動播放迴圈。
+func (p *GuildPlayer) StartPlayback(ctx context.Context, vc VoiceConnection, pipeline AudioPipeline) error {
+	defer vc.Disconnect()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-p.done:
+			return nil
+		default:
+		}
+
+		// 從佇列取出下一首歌
+		song, ok := p.queue.Dequeue()
+		if !ok {
+			// 佇列為空，等待新歌曲或停止訊號
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-p.done:
+				return nil
+			}
+		}
+
+		// 設定目前播放的歌曲
+		p.mu.Lock()
+		p.currentSong = &song
+		p.mu.Unlock()
+
+		// 播放歌曲（使用 StreamURL）
+		playCtx, cancel := context.WithCancel(ctx)
+
+		// 監聽 skip 訊號
+		go func() {
+			select {
+			case <-p.skip:
+				cancel() // 取消播放
+			case <-playCtx.Done():
+			}
+		}()
+
+		// 實際播放
+		err := pipeline.Play(playCtx, song.StreamURL, vc)
+		cancel() // 清理 context
+
+		// 清除目前播放的歌曲
+		p.mu.Lock()
+		p.currentSong = nil
+		p.mu.Unlock()
+
+		if err != nil && err != context.Canceled {
+			// 播放錯誤（非 skip 造成的取消）
+			return err
+		}
+
+		// 繼續播放下一首
+	}
+}
+

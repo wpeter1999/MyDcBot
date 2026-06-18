@@ -1,6 +1,10 @@
 package command
 
-import "discordbot/internal/player"
+import (
+	"context"
+
+	"discordbot/internal/player"
+)
 
 // MusicService 定義音樂指令與播放器互動的介面，方便測試時注入 fake 實作。
 type MusicService interface {
@@ -36,6 +40,9 @@ type PlayerController interface {
 
 	// GuildID 回傳此播放器所屬的 Guild ID。
 	GuildID() string
+
+	// StartPlayback 啟動播放迴圈（來自 player.PlaybackController）。
+	StartPlayback(ctx context.Context, vc player.VoiceConnection, pipeline player.AudioPipeline) error
 }
 
 // defaultMusicService 是預設的 MusicService 實作，直接使用 player.Manager。

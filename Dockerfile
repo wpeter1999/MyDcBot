@@ -2,12 +2,15 @@ FROM golang:1.22
 
 WORKDIR /workspace
 
-# 安裝系統依賴：ffmpeg, python3, curl
+# 安裝系統依賴：ffmpeg, python3, curl, libopus
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     python3 \
     python3-pip \
     curl \
+    libopus0 \
+    libopus-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # 安裝 yt-dlp（YouTube 下載工具）

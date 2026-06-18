@@ -1,6 +1,7 @@
 package command
 
 import (
+	"context"
 	"testing"
 
 	"discordbot/internal/player"
@@ -93,6 +94,11 @@ func (p *fakePlayerController) CurrentSong() (player.Song, bool) {
 
 func (p *fakePlayerController) GuildID() string {
 	return p.guildID
+}
+
+func (p *fakePlayerController) StartPlayback(ctx context.Context, vc player.VoiceConnection, pipeline player.AudioPipeline) error {
+	// Fake implementation - 不做任何事
+	return nil
 }
 
 // TestNowPlayingCommand_IsRegistered 測試 NowPlayingCommand 是否已註冊。
