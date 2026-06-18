@@ -59,11 +59,13 @@ func TestPlayCommand_HasRequiredQueryOption(t *testing.T) {
 func TestPlayCommand_ResolvesAndEnqueues(t *testing.T) {
 	originalService := GetMusicService()
 	originalResolver := GetYouTubeResolver()
-	originalResponder := respondToInteraction
+	originalDeferResponse := deferResponse
+	originalFollowUp := followUp
 	defer func() {
 		SetMusicService(originalService)
 		SetYouTubeResolver(originalResolver)
-		respondToInteraction = originalResponder
+		deferResponse = originalDeferResponse
+		followUp = originalFollowUp
 	}()
 
 	fakeService := newFakeMusicService()
@@ -79,7 +81,10 @@ func TestPlayCommand_ResolvesAndEnqueues(t *testing.T) {
 	SetYouTubeResolver(fakeResolver)
 
 	var gotContent string
-	respondToInteraction = func(_ *discordgo.Session, _ *discordgo.InteractionCreate, content string) {
+	deferResponse = func(_ *discordgo.Session, _ *discordgo.InteractionCreate) {
+		// Mock defer - 不做任何事
+	}
+	followUp = func(_ *discordgo.Session, _ *discordgo.InteractionCreate, content string) {
 		gotContent = content
 	}
 
@@ -127,11 +132,13 @@ func TestPlayCommand_ResolvesAndEnqueues(t *testing.T) {
 func TestPlayCommand_ReturnsErrorWhenResolverFails(t *testing.T) {
 	originalService := GetMusicService()
 	originalResolver := GetYouTubeResolver()
-	originalResponder := respondToInteraction
+	originalDeferResponse := deferResponse
+	originalFollowUp := followUp
 	defer func() {
 		SetMusicService(originalService)
 		SetYouTubeResolver(originalResolver)
-		respondToInteraction = originalResponder
+		deferResponse = originalDeferResponse
+		followUp = originalFollowUp
 	}()
 
 	fakeService := newFakeMusicService()
@@ -143,7 +150,10 @@ func TestPlayCommand_ReturnsErrorWhenResolverFails(t *testing.T) {
 	SetYouTubeResolver(fakeResolver)
 
 	var gotContent string
-	respondToInteraction = func(_ *discordgo.Session, _ *discordgo.InteractionCreate, content string) {
+	deferResponse = func(_ *discordgo.Session, _ *discordgo.InteractionCreate) {
+		// Mock defer - 不做任何事
+	}
+	followUp = func(_ *discordgo.Session, _ *discordgo.InteractionCreate, content string) {
 		gotContent = content
 	}
 
