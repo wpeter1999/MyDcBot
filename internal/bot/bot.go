@@ -8,6 +8,8 @@ import (
 
 	"discordbot/internal/command"
 	"discordbot/internal/config"
+	"discordbot/internal/player"
+	"discordbot/internal/youtube"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -34,6 +36,7 @@ type Bot struct {
 	registeredCommands []*discordgo.ApplicationCommand
 	commandHandlers    map[string]func(*discordgo.Session, *discordgo.InteractionCreate)
 	cfg                *config.Config
+	playerManager      *player.Manager
 }
 
 // New 建立新的 Bot 實例
@@ -43,9 +46,21 @@ func New(cfg *config.Config) (*Bot, error) {
 		return nil, err
 	}
 
+	// 初始化 player manager（佇列容量 50）
+	playerManager := player.NewManager(50)
+
+	// 初始化 YouTube resolver
+	youtubeRunner := youtube.NewExecCommandRunner()
+	youtubeResolver := youtube.NewResolver(youtubeRunner)
+
+	// 設定全域服務（供指令使用）
+	command.SetMusicService(command.NewDefaultMusicService(playerManager))
+	command.SetYouTubeResolver(youtubeResolver)
+
 	b := &Bot{
-		Session: dg,
-		cfg:     cfg,
+		Session:       dg,
+		cfg:           cfg,
+		playerManager: playerManager,
 	}
 
 	dg.AddHandler(b.interactionCreate)
