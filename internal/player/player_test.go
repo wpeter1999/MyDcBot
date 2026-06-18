@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// TestGuildPlayer_EnqueueAndQueueSnapshot 測試播放器的 enqueue 與 queue snapshot 功能。
 func TestGuildPlayer_EnqueueAndQueueSnapshot(t *testing.T) {
 	player := NewGuildPlayer("guild-1", 2)
 
@@ -25,6 +26,7 @@ func TestGuildPlayer_EnqueueAndQueueSnapshot(t *testing.T) {
 	}
 }
 
+// TestGuildPlayer_CurrentSongState 測試播放器的目前播放歌曲狀態管理。
 func TestGuildPlayer_CurrentSongState(t *testing.T) {
 	player := NewGuildPlayer("guild-1", 50)
 	song := Song{Title: "Song A"}
@@ -48,6 +50,7 @@ func TestGuildPlayer_CurrentSongState(t *testing.T) {
 	}
 }
 
+// TestGuildPlayer_TogglePause 測試播放器的暫停切換功能。
 func TestGuildPlayer_TogglePause(t *testing.T) {
 	player := NewGuildPlayer("guild-1", 50)
 
@@ -65,6 +68,7 @@ func TestGuildPlayer_TogglePause(t *testing.T) {
 	}
 }
 
+// TestGuildPlayer_SkipIsNonBlockingSignal 測試 Skip 是非阻塞訊號且不會重複送出。
 func TestGuildPlayer_SkipIsNonBlockingSignal(t *testing.T) {
 	player := NewGuildPlayer("guild-1", 50)
 
@@ -82,6 +86,7 @@ func TestGuildPlayer_SkipIsNonBlockingSignal(t *testing.T) {
 	}
 }
 
+// TestGuildPlayer_StopIsIdempotentAndClosesDone 測試 Stop 是冪等的且會關閉 Done channel。
 func TestGuildPlayer_StopIsIdempotentAndClosesDone(t *testing.T) {
 	player := NewGuildPlayer("guild-1", 50)
 	_ = player.Enqueue(Song{Title: "Song A"})
@@ -111,6 +116,7 @@ func TestGuildPlayer_StopIsIdempotentAndClosesDone(t *testing.T) {
 	}
 }
 
+// TestGuildPlayer_EnqueueReturnsErrorAfterStop 測試播放器停止後 Enqueue 會回傳錯誤。
 func TestGuildPlayer_EnqueueReturnsErrorAfterStop(t *testing.T) {
 	player := NewGuildPlayer("guild-1", 50)
 	player.Stop()

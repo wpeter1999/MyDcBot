@@ -2,14 +2,14 @@ package player
 
 import "sync"
 
-// Queue stores songs in FIFO order and exposes safe snapshots for read-only commands.
+// Queue 以 FIFO 順序儲存歌曲，並提供安全的快照功能供唯讀指令使用。
 type Queue struct {
 	mu       sync.Mutex
 	songs    []Song
 	capacity int
 }
 
-// NewQueue creates a slice-backed FIFO queue with a fixed capacity.
+// NewQueue 建立一個基於 slice 的 FIFO 佇列，具有固定容量限制。
 func NewQueue(capacity int) *Queue {
 	if capacity < 0 {
 		capacity = 0
@@ -20,7 +20,7 @@ func NewQueue(capacity int) *Queue {
 	}
 }
 
-// Enqueue appends a song to the end of the queue.
+// Enqueue 將歌曲加入佇列尾端。
 func (q *Queue) Enqueue(song Song) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -33,7 +33,7 @@ func (q *Queue) Enqueue(song Song) error {
 	return nil
 }
 
-// Dequeue removes and returns the next song in FIFO order.
+// Dequeue 移除並回傳 FIFO 順序中的下一首歌曲。
 func (q *Queue) Dequeue() (Song, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -48,7 +48,7 @@ func (q *Queue) Dequeue() (Song, bool) {
 	return song, true
 }
 
-// Snapshot returns a copy of queued songs without consuming them.
+// Snapshot 回傳已加入佇列的歌曲副本，不會消費佇列內容。
 func (q *Queue) Snapshot() []Song {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -58,7 +58,7 @@ func (q *Queue) Snapshot() []Song {
 	return snapshot
 }
 
-// Len returns the current number of queued songs.
+// Len 回傳目前佇列中的歌曲數量。
 func (q *Queue) Len() int {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -66,7 +66,7 @@ func (q *Queue) Len() int {
 	return len(q.songs)
 }
 
-// Clear removes all queued songs.
+// Clear 移除所有已加入佇列的歌曲。
 func (q *Queue) Clear() {
 	q.mu.Lock()
 	defer q.mu.Unlock()

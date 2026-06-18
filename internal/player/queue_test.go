@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestQueue_EnqueueDequeueAndSnapshot 測試佇列的 enqueue、dequeue 與 snapshot 功能。
 func TestQueue_EnqueueDequeueAndSnapshot(t *testing.T) {
 	queue := NewQueue(3)
 	songA := Song{Title: "Song A", URL: "https://example.test/a", RequestedBy: "user-1"}
@@ -40,6 +41,7 @@ func TestQueue_EnqueueDequeueAndSnapshot(t *testing.T) {
 	}
 }
 
+// TestQueue_ReturnsErrorWhenFull 測試佇列已滿時會回傳 ErrQueueFull 錯誤。
 func TestQueue_ReturnsErrorWhenFull(t *testing.T) {
 	queue := NewQueue(1)
 	if err := queue.Enqueue(Song{Title: "Song A"}); err != nil {
@@ -52,6 +54,7 @@ func TestQueue_ReturnsErrorWhenFull(t *testing.T) {
 	}
 }
 
+// TestQueue_ClearRemovesAllSongs 測試 Clear 會移除所有已加入佇列的歌曲。
 func TestQueue_ClearRemovesAllSongs(t *testing.T) {
 	queue := NewQueue(3)
 	_ = queue.Enqueue(Song{Title: "Song A"})
@@ -67,6 +70,7 @@ func TestQueue_ClearRemovesAllSongs(t *testing.T) {
 	}
 }
 
+// TestQueue_SnapshotReturnsCopy 測試 Snapshot 回傳的是獨立副本，修改不會影響原佇列。
 func TestQueue_SnapshotReturnsCopy(t *testing.T) {
 	queue := NewQueue(2)
 	_ = queue.Enqueue(Song{Title: "Song A"})

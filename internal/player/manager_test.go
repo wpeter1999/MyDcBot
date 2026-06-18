@@ -2,6 +2,7 @@ package player
 
 import "testing"
 
+// TestManager_GetOrCreateReturnsSamePlayerForSameGuild 測試相同 GuildID 會取得同一個播放器。
 func TestManager_GetOrCreateReturnsSamePlayerForSameGuild(t *testing.T) {
 	manager := NewManager(50)
 
@@ -13,6 +14,7 @@ func TestManager_GetOrCreateReturnsSamePlayerForSameGuild(t *testing.T) {
 	}
 }
 
+// TestManager_GetOrCreateReturnsDifferentPlayersForDifferentGuilds 測試不同 GuildID 會取得不同的播放器。
 func TestManager_GetOrCreateReturnsDifferentPlayersForDifferentGuilds(t *testing.T) {
 	manager := NewManager(50)
 
@@ -30,6 +32,7 @@ func TestManager_GetOrCreateReturnsDifferentPlayersForDifferentGuilds(t *testing
 	}
 }
 
+// TestManager_RemoveStopsAndDeletesPlayer 測試 Remove 會停止並刪除播放器。
 func TestManager_RemoveStopsAndDeletesPlayer(t *testing.T) {
 	manager := NewManager(50)
 	player := manager.GetOrCreate("guild-1")

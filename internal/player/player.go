@@ -2,7 +2,7 @@ package player
 
 import "sync"
 
-// GuildPlayer owns playback state and control signals for a single Discord guild.
+// GuildPlayer 保存單一 Discord Guild 的播放狀態與控制訊號。
 type GuildPlayer struct {
 	guildID string
 	queue   *Queue
@@ -16,7 +16,7 @@ type GuildPlayer struct {
 	stopOnce    sync.Once
 }
 
-// NewGuildPlayer creates a stopped-state-aware player for one guild.
+// NewGuildPlayer 建立指定 Guild 的播放器，並初始化佇列、skip signal 與 done channel。
 func NewGuildPlayer(guildID string, queueCapacity int) *GuildPlayer {
 	return &GuildPlayer{
 		guildID: guildID,
@@ -26,12 +26,12 @@ func NewGuildPlayer(guildID string, queueCapacity int) *GuildPlayer {
 	}
 }
 
-// GuildID returns the Discord guild ID this player belongs to.
+// GuildID 回傳此播放器所屬的 Discord Guild ID。
 func (p *GuildPlayer) GuildID() string {
 	return p.guildID
 }
 
-// Enqueue adds a song to this player's queue.
+// Enqueue 將歌曲加入此 Guild 的播放佇列；播放器停止後會回傳 ErrPlayerStopped。
 func (p *GuildPlayer) Enqueue(song Song) error {
 	p.mu.RLock()
 	stopped := p.stopped
@@ -43,17 +43,17 @@ func (p *GuildPlayer) Enqueue(song Song) error {
 	return p.queue.Enqueue(song)
 }
 
-// QueueSnapshot returns queued songs without consuming them.
+// QueueSnapshot 回傳目前佇列歌曲的複本，不會消費佇列內容。
 func (p *GuildPlayer) QueueSnapshot() []Song {
 	return p.queue.Snapshot()
 }
 
-// QueueLen returns the number of queued songs.
+// QueueLen 回傳目前佇列中的歌曲數量。
 func (p *GuildPlayer) QueueLen() int {
 	return p.queue.Len()
 }
 
-// SetCurrentSong records the song currently being played.
+// SetCurrentSong 記錄目前正在播放的歌曲。
 func (p *GuildPlayer) SetCurrentSong(song Song) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -62,7 +62,7 @@ func (p *GuildPlayer) SetCurrentSong(song Song) {
 	p.currentSong = &current
 }
 
-// CurrentSong returns a copy of the current song, if one exists.
+// CurrentSong 回傳目前播放歌曲的複本；沒有歌曲時 ok 會是 false。
 func (p *GuildPlayer) CurrentSong() (Song, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -73,7 +73,7 @@ func (p *GuildPlayer) CurrentSong() (Song, bool) {
 	return *p.currentSong, true
 }
 
-// ClearCurrentSong clears the current song state.
+// ClearCurrentSong 清除目前播放歌曲的狀態。
 func (p *GuildPlayer) ClearCurrentSong() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -81,7 +81,7 @@ func (p *GuildPlayer) ClearCurrentSong() {
 	p.currentSong = nil
 }
 
-// TogglePause flips the paused state and returns the new value.
+// TogglePause 切換暫停狀態，並回傳切換後的新狀態。
 func (p *GuildPlayer) TogglePause() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -90,7 +90,7 @@ func (p *GuildPlayer) TogglePause() bool {
 	return p.paused
 }
 
-// IsPaused reports whether the player is currently paused.
+// IsPaused 回傳播放器目前是否處於暫停狀態。
 func (p *GuildPlayer) IsPaused() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -98,7 +98,7 @@ func (p *GuildPlayer) IsPaused() bool {
 	return p.paused
 }
 
-// Skip sends a non-blocking skip signal. It returns false if a signal is already pending or the player is stopped.
+// Skip 以非阻塞方式送出跳過訊號；若已有 pending 訊號或播放器已停止則回傳 false。
 func (p *GuildPlayer) Skip() bool {
 	p.mu.RLock()
 	stopped := p.stopped
@@ -115,12 +115,12 @@ func (p *GuildPlayer) Skip() bool {
 	}
 }
 
-// SkipChan exposes skip signals to the playback loop.
+// SkipChan 回傳唯讀 skip channel，供後續播放迴圈監聽跳過訊號。
 func (p *GuildPlayer) SkipChan() <-chan struct{} {
 	return p.skip
 }
 
-// Stop marks the player stopped, clears state, and closes Done exactly once.
+// Stop 將播放器標記為停止、清空狀態並只關閉一次 Done channel。
 func (p *GuildPlayer) Stop() {
 	p.stopOnce.Do(func() {
 		p.mu.Lock()
@@ -134,7 +134,7 @@ func (p *GuildPlayer) Stop() {
 	})
 }
 
-// IsStopped reports whether Stop has been called.
+// IsStopped 回傳 Stop 是否已經被呼叫過。
 func (p *GuildPlayer) IsStopped() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -142,7 +142,7 @@ func (p *GuildPlayer) IsStopped() bool {
 	return p.stopped
 }
 
-// Done is closed when the player stops.
+// Done 回傳播放器停止時會被關閉的 channel，供外部等待清理完成。
 func (p *GuildPlayer) Done() <-chan struct{} {
 	return p.done
 }

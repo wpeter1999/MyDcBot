@@ -2,14 +2,14 @@ package player
 
 import "sync"
 
-// Manager owns GuildPlayer instances and keeps playback state isolated per guild.
+// Manager 管理多個 GuildPlayer 實例，確保每個 Guild 的播放狀態相互隔離。
 type Manager struct {
 	mu            sync.Mutex
 	players       map[string]*GuildPlayer
 	queueCapacity int
 }
 
-// NewManager creates a Manager that gives each GuildPlayer the configured queue capacity.
+// NewManager 建立 Manager 並為每個 GuildPlayer 配置指定的佇列容量。
 func NewManager(queueCapacity int) *Manager {
 	return &Manager{
 		players:       make(map[string]*GuildPlayer),
@@ -17,7 +17,7 @@ func NewManager(queueCapacity int) *Manager {
 	}
 }
 
-// GetOrCreate returns the existing player for a guild or creates one if absent.
+// GetOrCreate 回傳指定 Guild 的播放器；若不存在則建立新的播放器。
 func (m *Manager) GetOrCreate(guildID string) *GuildPlayer {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -31,7 +31,7 @@ func (m *Manager) GetOrCreate(guildID string) *GuildPlayer {
 	return player
 }
 
-// Get returns the existing player for a guild.
+// Get 回傳指定 Guild 的現有播放器；不存在時 ok 為 false。
 func (m *Manager) Get(guildID string) (*GuildPlayer, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -40,7 +40,7 @@ func (m *Manager) Get(guildID string) (*GuildPlayer, bool) {
 	return player, ok
 }
 
-// Remove stops and deletes the player for a guild. It returns false when no player exists.
+// Remove 停止並刪除指定 Guild 的播放器；播放器不存在時回傳 false。
 func (m *Manager) Remove(guildID string) bool {
 	m.mu.Lock()
 	player, ok := m.players[guildID]
