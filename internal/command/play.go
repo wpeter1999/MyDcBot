@@ -1,7 +1,11 @@
 package command
 
 import (
+	"context"
 	"fmt"
+	"time"
+
+	"discordbot/internal/youtube"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -23,10 +27,27 @@ var PlayCommand = &BotCommand{
 	Handler: playCommandHandler,
 }
 
+var youtubeResolver youtube.Resolver
+
+// SetYouTubeResolver 設定全域 YouTube Resolver（測試時可注入 fake）。
+func SetYouTubeResolver(resolver youtube.Resolver) {
+	youtubeResolver = resolver
+}
+
+// GetYouTubeResolver 取得目前的 YouTube Resolver。
+func GetYouTubeResolver() youtube.Resolver {
+	return youtubeResolver
+}
+
 // playCommandHandler 處理 /play 指令，將歌曲加入播放佇列。
 func playCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if musicService == nil {
 		respond(s, i, "音樂服務尚未初始化。")
+		return
+	}
+
+	if youtubeResolver == nil {
+		respond(s, i, "YouTube 解析服務尚未初始化。")
 		return
 	}
 
@@ -42,9 +63,27 @@ func playCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
-	// Phase 2: 暫時回應已收到請求
-	// Phase 3 會加入實際的 YouTube 解析
-	// Phase 5 會加入實際的播放功能
-	message := fmt.Sprintf("✅ 已收到播放請求：`%s`\n（YouTube 解析功能將在 Phase 3 實作）", query)
+	// 使用 context 控制 resolver 超時
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	song, err := youtubeResolver.Resolve(ctx, query)
+	if err != nil {
+		message := fmt.Sprintf("❌ 無法解析查詢：%v", err)
+		respond(s, i, message)
+		return
+	}
+
+	// 設定 RequestedBy
+	song.RequestedBy = i.Member.User.ID
+
+	player := musicService.GetOrCreatePlayer(i.GuildID)
+	if err := player.Enqueue(song); err != nil {
+		message := fmt.Sprintf("❌ 無法加入佇列：%v", err)
+		respond(s, i, message)
+		return
+	}
+
+	message := fmt.Sprintf("✅ 已加入佇列：**%s**", song.Title)
 	respond(s, i, message)
 }
