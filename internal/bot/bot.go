@@ -15,6 +15,7 @@ import (
 	"github.com/disgoorg/disgo"
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/cache"
+	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
 	"github.com/disgoorg/disgo/gateway"
 	"github.com/disgoorg/disgolink/v3/disgolink"
@@ -71,6 +72,10 @@ func New(cfg *config.Config) (*Bot, error) {
 			gateway.WithIntents(
 				gateway.IntentGuilds,
 				gateway.IntentGuildVoiceStates,
+			),
+			gateway.WithPresenceOpts(
+				gateway.WithOnlineStatus(discord.OnlineStatusOnline),
+				gateway.WithListeningActivity("音樂 | /help"),
 			),
 		),
 		bot.WithCacheConfigOpts(
