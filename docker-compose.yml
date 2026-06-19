@@ -16,14 +16,6 @@ services:
     networks:
       - discord-bot
 
-  ytdlp:
-    image: ghcr.io/yt-dlp/yt-dlp:latest
-    container_name: discord-bot-ytdlp
-    restart: unless-stopped
-    command: --version
-    networks:
-      - discord-bot
-
   workspace:
     build: .
     container_name: discord-bot-workspace
