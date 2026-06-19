@@ -1,33 +1,79 @@
 package command
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/disgo/events"
+	"github.com/disgoorg/disgolink/v3/lavalink"
+)
 
 // SkipCommand 定義 /skip 指令。
 var SkipCommand = &BotCommand{
-	Command: &discordgo.ApplicationCommand{
+	Command: discord.SlashCommandCreate{
 		Name:        "skip",
 		Description: "跳過目前播放的歌曲",
 	},
 	Handler: skipCommandHandler,
 }
 
-// skipCommandHandler 處理 /skip 指令，跳過目前播放的歌曲。
-func skipCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+// skipCommandHandler 處理 /skip 指令，跳過目前播放的歌曲並播放下一首。
+func skipCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	if musicService == nil {
-		respond(s, i, "音樂服務尚未初始化。")
+		respond(event, "音樂服務尚未初始化。")
 		return
 	}
 
-	player := musicService.GetOrCreatePlayer(i.GuildID)
+	guildID := event.GuildID().String()
+	guildPlayer := musicService.GetOrCreatePlayer(guildID)
 
-	if _, ok := player.CurrentSong(); !ok {
-		respond(s, i, "目前沒有播放任何歌曲。")
+	// 檢查是否有下一首歌
+	if guildPlayer.QueueLen() == 0 {
+		respond(event, "⏭️ 已跳過當前歌曲，但佇列中沒有下一首歌曲了。")
+		// 停止播放
+		lavalinkClient := GetLavalinkClient()
+		if lavalinkClient != nil {
+			player := lavalinkClient.Player(*event.GuildID())
+			player.Update(context.Background(), lavalink.WithNullTrack())
+		}
+		guildPlayer.ClearCurrentSong()
 		return
 	}
 
-	if player.Skip() {
-		respond(s, i, "⏭️ 已跳過目前的歌曲。")
-	} else {
-		respond(s, i, "無法跳過歌曲。")
+	// 從佇列取出下一首
+	nextSong, ok := guildPlayer.Dequeue()
+	if !ok {
+		respond(event, "⏭️ 佇列中沒有下一首歌曲。")
+		return
 	}
+
+	// 設定為當前播放
+	guildPlayer.SetCurrentSong(nextSong)
+
+	// 獲取 voice channel
+	voiceState, ok := event.Client().Caches().VoiceState(*event.GuildID(), event.User().ID)
+	if !ok || voiceState.ChannelID == nil {
+		respond(event, "⚠️ 無法找到語音頻道")
+		return
+	}
+
+	channelID := *voiceState.ChannelID
+
+	respond(event, fmt.Sprintf("⏭️ 已跳過，正在播放：**%s**", nextSong.Title))
+
+	// 異步播放下一首
+	go func() {
+		err := JoinVoiceAndPlayWithYtDlp(event.Client(), *event.GuildID(), channelID, nextSong.URL)
+		if err != nil {
+			log.Printf("Skip: Failed to play next song: %v", err)
+			// 嘗試 SoundCloud 備用
+			searchQuery := "scsearch:" + nextSong.Title
+			err = JoinVoiceAndPlay(event.Client(), *event.GuildID(), channelID, searchQuery)
+			if err != nil {
+				log.Printf("Skip: Failed with SoundCloud backup: %v", err)
+			}
+		}
+	}()
 }

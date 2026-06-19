@@ -60,14 +60,27 @@ func (r *ytdlpResolver) Resolve(ctx context.Context, query string) (player.Song,
 
 // buildArgs 根據查詢字串建立 yt-dlp 指令參數。
 func (r *ytdlpResolver) buildArgs(query string) []string {
-	args := []string{"-j", "--no-warnings"}
+	args := []string{"-j", "--no-warnings", "--no-playlist"}
+
+	// 清理 URL，移除播放清單參數
+	cleanQuery := query
+	if strings.Contains(query, "&list=") {
+		if idx := strings.Index(query, "&list="); idx != -1 {
+			cleanQuery = query[:idx]
+		}
+	}
+	if strings.Contains(cleanQuery, "&start_radio=") {
+		if idx := strings.Index(cleanQuery, "&start_radio="); idx != -1 {
+			cleanQuery = cleanQuery[:idx]
+		}
+	}
 
 	// 判斷是 URL 還是搜尋關鍵字
-	if strings.HasPrefix(query, "http://") || strings.HasPrefix(query, "https://") {
-		args = append(args, query)
+	if strings.HasPrefix(cleanQuery, "http://") || strings.HasPrefix(cleanQuery, "https://") {
+		args = append(args, cleanQuery)
 	} else {
 		// 搜尋關鍵字使用 ytsearch1: 前綴
-		args = append(args, "ytsearch1:"+query)
+		args = append(args, "ytsearch1:"+cleanQuery)
 	}
 
 	return args

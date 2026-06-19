@@ -4,111 +4,159 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sync"
 
-	"discordbot/internal/audio"
-	"discordbot/internal/player"
-
-	"github.com/bwmarrin/discordgo"
+	"github.com/disgoorg/disgo/bot"
+	"github.com/disgoorg/disgolink/v3/disgolink"
+	"github.com/disgoorg/disgolink/v3/lavalink"
+	"github.com/disgoorg/snowflake/v2"
 )
 
-// voiceManager 管理 Discord 語音連線和播放迴圈。
-type voiceManager struct {
-	mu             sync.Mutex
-	activePlayback map[string]context.CancelFunc // guildID -> cancel function
-	pipeline       audio.Pipeline
-}
+// JoinVoiceAndPlay 使用 Lavalink 加入語音頻道並播放
+func JoinVoiceAndPlay(client bot.Client, guildID snowflake.ID, channelID snowflake.ID, trackURL string) error {
+	ctx := context.Background()
 
-var globalVoiceManager = &voiceManager{
-	activePlayback: make(map[string]context.CancelFunc),
-	pipeline:       audio.NewPipeline(audio.NewOpusStreamer()),
-}
+	log.Printf("[Voice] Joining voice channel %s in guild %s", channelID, guildID)
 
-// JoinVoiceAndPlay 加入使用者的語音頻道並啟動播放迴圈（如果尚未播放）。
-func JoinVoiceAndPlay(s *discordgo.Session, guildID, userID string, player player.PlaybackController) error {
-	vm := globalVoiceManager
-	vm.mu.Lock()
-	defer vm.mu.Unlock()
-
-	// 檢查是否已經在播放
-	if _, isPlaying := vm.activePlayback[guildID]; isPlaying {
-		// 已經在播放，不需要重新加入
-		return nil
-	}
-
-	// 找到使用者所在的語音頻道
-	guild, err := s.State.Guild(guildID)
+	// 1. 更新 Discord voice state (加入頻道)
+	err := client.UpdateVoiceState(ctx, guildID, &channelID, false, false)
 	if err != nil {
-		return fmt.Errorf("無法取得 Guild 資訊: %w", err)
+		return fmt.Errorf("failed to join voice channel: %w", err)
 	}
 
-	var channelID string
-	for _, vs := range guild.VoiceStates {
-		if vs.UserID == userID {
-			channelID = vs.ChannelID
-			break
+	// 2. 獲取 Lavalink client
+	lavalinkClient := GetLavalinkClient()
+	if lavalinkClient == nil {
+		return fmt.Errorf("lavalink client not initialized")
+	}
+
+	// 3. 載入音軌
+	log.Printf("[Lavalink] Loading track: %s", trackURL)
+
+	node := lavalinkClient.BestNode()
+	if node == nil {
+		return fmt.Errorf("no lavalink nodes available")
+	}
+
+	var loadedTrack lavalink.Track
+	var loadErr error
+
+	// LoadTracksHandler 不返回 error，只通過 handler 回調
+	node.LoadTracksHandler(ctx, trackURL, disgolink.NewResultHandler(
+		func(track lavalink.Track) {
+			log.Printf("[Lavalink] Loaded track: %s", track.Info.Title)
+			loadedTrack = track
+		},
+		func(playlist lavalink.Playlist) {
+			log.Printf("[Lavalink] Loaded playlist: %s", playlist.Info.Name)
+			if len(playlist.Tracks) > 0 {
+				loadedTrack = playlist.Tracks[0]
+			}
+		},
+		func(tracks []lavalink.Track) {
+			log.Printf("[Lavalink] Loaded %d search results", len(tracks))
+			if len(tracks) > 0 {
+				loadedTrack = tracks[0]
+			}
+		},
+		func() {
+			log.Printf("[Lavalink] No matches found")
+			loadErr = fmt.Errorf("no matches found for: %s", trackURL)
+		},
+		func(err error) {
+			log.Printf("[Lavalink] Load failed: %v", err)
+			loadErr = err
+		},
+	))
+
+	if loadErr != nil {
+		return loadErr
+	}
+
+	if loadedTrack.Info.Title == "" {
+		return fmt.Errorf("no track loaded")
+	}
+
+	// 4. 播放音軌
+	player := lavalinkClient.Player(guildID)
+	err = player.Update(ctx, lavalink.WithTrack(loadedTrack))
+	if err != nil {
+		return fmt.Errorf("failed to play track: %w", err)
+	}
+
+	log.Printf("[Lavalink] Now playing: %s", loadedTrack.Info.Title)
+	return nil
+}
+
+// StopPlayback 停止播放並離開語音頻道
+func StopPlayback(client bot.Client, guildID snowflake.ID) error {
+	ctx := context.Background()
+
+	log.Printf("[Voice] Stopping playback for guild %s", guildID)
+
+	// 停止 Lavalink player
+	lavalinkClient := GetLavalinkClient()
+	if lavalinkClient != nil {
+		player := lavalinkClient.Player(guildID)
+		err := player.Update(ctx, lavalink.WithNullTrack())
+		if err != nil {
+			log.Printf("[Lavalink] Failed to stop player: %v", err)
 		}
 	}
 
-	if channelID == "" {
-		return fmt.Errorf("你必須先加入語音頻道")
-	}
-
-	// 加入語音頻道
-	vc, err := s.ChannelVoiceJoin(guildID, channelID, false, true)
+	// 離開語音頻道
+	err := client.UpdateVoiceState(ctx, guildID, nil, false, false)
 	if err != nil {
-		return fmt.Errorf("無法加入語音頻道: %w", err)
+		return fmt.Errorf("failed to leave voice channel: %w", err)
 	}
-
-	// 啟動播放迴圈
-	ctx, cancel := context.WithCancel(context.Background())
-	vm.activePlayback[guildID] = cancel
-
-	go func() {
-		defer func() {
-			vm.mu.Lock()
-			delete(vm.activePlayback, guildID)
-			vm.mu.Unlock()
-			vc.Disconnect()
-		}()
-
-		// 包裝 discordgo.VoiceConnection 為我們的介面
-		vcWrapper := &voiceConnectionWrapper{vc: vc}
-
-		err := player.StartPlayback(ctx, vcWrapper, vm.pipeline)
-		if err != nil && err != context.Canceled {
-			log.Printf("播放迴圈錯誤 (Guild %s): %v", guildID, err)
-		}
-	}()
 
 	return nil
 }
 
-// StopPlayback 停止指定 Guild 的播放。
-func StopPlayback(guildID string) {
-	vm := globalVoiceManager
-	vm.mu.Lock()
-	defer vm.mu.Unlock()
+// PausePlayback 暫停或恢復播放
+func PausePlayback(guildID snowflake.ID, pause bool) error {
+	ctx := context.Background()
 
-	if cancel, ok := vm.activePlayback[guildID]; ok {
-		cancel()
-		delete(vm.activePlayback, guildID)
+	lavalinkClient := GetLavalinkClient()
+	if lavalinkClient == nil {
+		return fmt.Errorf("lavalink client not initialized")
 	}
+
+	player := lavalinkClient.Player(guildID)
+	err := player.Update(ctx, lavalink.WithPaused(pause))
+	if err != nil {
+		return fmt.Errorf("failed to update pause state: %w", err)
+	}
+
+	return nil
 }
 
-// voiceConnectionWrapper 包裝 discordgo.VoiceConnection 實作 player.VoiceConnection 介面。
-type voiceConnectionWrapper struct {
-	vc *discordgo.VoiceConnection
+// SkipTrack 跳過當前音軌
+func SkipTrack(guildID snowflake.ID) error {
+	ctx := context.Background()
+
+	lavalinkClient := GetLavalinkClient()
+	if lavalinkClient == nil {
+		return fmt.Errorf("lavalink client not initialized")
+	}
+
+	player := lavalinkClient.Player(guildID)
+	// 停止當前音軌，觸發 TrackEnd 事件
+	err := player.Update(ctx, lavalink.WithNullTrack())
+	if err != nil {
+		return fmt.Errorf("failed to skip track: %w", err)
+	}
+
+	return nil
 }
 
-func (w *voiceConnectionWrapper) Speaking(speaking bool) error {
-	return w.vc.Speaking(speaking)
-}
+// GetPlayerState 獲取播放器狀態
+func GetPlayerState(guildID snowflake.ID) (isPlaying bool, isPaused bool, track *lavalink.Track) {
+	lavalinkClient := GetLavalinkClient()
+	if lavalinkClient == nil {
+		return false, false, nil
+	}
 
-func (w *voiceConnectionWrapper) OpusSend() chan<- []byte {
-	return w.vc.OpusSend
-}
-
-func (w *voiceConnectionWrapper) Disconnect() error {
-	return w.vc.Disconnect()
+	player := lavalinkClient.Player(guildID)
+	currentTrack := player.Track()
+	return currentTrack != nil, player.Paused(), currentTrack
 }

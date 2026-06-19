@@ -1,10 +1,15 @@
 package command
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"fmt"
+
+	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/disgo/events"
+)
 
 // StopCommand 定義 /stop 指令。
 var StopCommand = &BotCommand{
-	Command: &discordgo.ApplicationCommand{
+	Command: discord.SlashCommandCreate{
 		Name:        "stop",
 		Description: "停止播放並清空佇列",
 	},
@@ -12,19 +17,26 @@ var StopCommand = &BotCommand{
 }
 
 // stopCommandHandler 處理 /stop 指令，停止播放並清空佇列。
-func stopCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func stopCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	if musicService == nil {
-		respond(s, i, "音樂服務尚未初始化。")
+		respond(event, "音樂服務尚未初始化。")
 		return
 	}
 
-	// 停止播放迴圈
-	StopPlayback(i.GuildID)
+	guildID := *event.GuildID()
+	guildIDStr := guildID.String()
 
-	removed := musicService.RemovePlayer(i.GuildID)
+	// 停止播放並離開語音頻道
+	err := StopPlayback(event.Client(), guildID)
+	if err != nil {
+		respond(event, fmt.Sprintf("❌ 停止失敗：%v", err))
+		return
+	}
+
+	removed := musicService.RemovePlayer(guildIDStr)
 	if removed {
-		respond(s, i, "⏹️ 已停止播放並清空佇列。")
+		respond(event, "⏹️ 已停止播放並清空佇列。")
 	} else {
-		respond(s, i, "目前沒有正在播放的內容。")
+		respond(event, "⏹️ 已停止播放。")
 	}
 }

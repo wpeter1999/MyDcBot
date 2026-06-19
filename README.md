@@ -1,155 +1,276 @@
-# Discord Bot (Go)
+# 🎵 Discord 音樂機器人
 
-使用 `discordgo` 開發的 Discord 音樂 Bot 專案。
+使用 Go 語言開發的功能完整的 Discord 音樂機器人，支援 YouTube 播放、播放清單、下載等功能。
 
-## 功能特色
+## ✨ 功能特色
 
-✅ **已實作**
-- `/ping` - 測試 bot 連線
-- `/weather <city>` - 查詢天氣資訊
-- `/play <歌曲名稱或 URL>` - 播放 YouTube 音樂
-- `/pause` - 暫停播放
-- `/skip` - 跳過當前歌曲
-- `/stop` - 停止播放並離開語音頻道
-- `/queue` - 查看播放佇列
-- `/nowplaying` - 查看當前播放歌曲
+### 🎵 播放功能
+- ✅ **播放 YouTube 音樂** - 支援關鍵字搜尋和直接 URL
+- ✅ **播放清單支援** - 自動載入並播放整個 YouTube 播放清單
+- ✅ **自動播放下一首** - 歌曲結束後自動繼續播放佇列
+- ✅ **播放控制** - 暫停、繼續、跳過、停止
+- ✅ **佇列管理** - 查看和管理播放佇列
+- ✅ **當前播放** - 顯示正在播放的歌曲資訊
 
-⚠️ **已知限制**
-- **Discord DAVE 協議問題**：2024 年後 Discord 要求語音連線使用 DAVE (Discord Audio/Video E2E) 加密協議
-- 目前 Go 語言的 Discord 函式庫尚未有穩定的 DAVE 支援
-- 在啟用 DAVE 的伺服器上，bot 無法加入語音頻道（會收到 `websocket: close 4017` 錯誤）
-- 等待社群提供穩定的解決方案後會進行更新
+### 📥 下載功能
+- ✅ **音訊下載** - 下載 YouTube 音訊檔案
+- ✅ **多格式支援** - MP3, M4A, Opus, FLAC, WAV
+- ✅ **自動限制** - 檔案大小和時長限制
+- ✅ **直接上傳** - 自動上傳到 Discord（< 25MB）
 
-## 安裝與設定
+### 🎯 技術特點
+- ✅ **Lavalink 整合** - 使用 Lavalink 處理音訊串流
+- ✅ **yt-dlp 提取** - 繞過 YouTube 限制
+- ✅ **SoundCloud 備用** - YouTube 失敗時自動切換
+- ✅ **Docker 部署** - 完整的 Docker Compose 配置
 
-### 方法一：Docker（推薦）
+## 📋 可用指令
 
-1. 建立 `.env` 檔案：
+| 指令 | 說明 | 範例 |
+|------|------|------|
+| `/play` | 播放音樂或播放清單 | `/play query: clear mind` |
+| `/pause` | 暫停/繼續播放 | `/pause` |
+| `/skip` | 跳到下一首 | `/skip` |
+| `/stop` | 停止播放並清空佇列 | `/stop` |
+| `/queue` | 顯示播放佇列 | `/queue` |
+| `/nowplaying` | 顯示當前播放 | `/nowplaying` |
+| `/download` | 下載音訊檔案 | `/download format: mp3-320 url: [URL]` |
+| `/help` | 顯示使用說明 | `/help` |
 
+## 🚀 快速開始
+
+### 前置需求
+
+- Docker 和 Docker Compose
+- Discord Bot Token
+- Discord Guild ID（用於測試）
+
+### 安裝步驟
+
+1. **Clone 專案**
+```bash
+git clone <repository-url>
+cd DiscordBot
+```
+
+2. **設定環境變數**
 ```bash
 cp .env.example .env
 ```
 
-2. 在 `.env` 中填入你的 Bot Token：
-
+編輯 `.env` 並填入：
 ```env
 BOT_TOKEN=your_discord_bot_token_here
+GUILD_ID=your_test_guild_id_here
 ```
 
-（可選）若想在私人伺服器快速測試 Slash Command，可加入 Guild ID：
-
-```env
-GUILD_ID=your_test_guild_id
-```
-
-3. 建置並啟動 bot：
-
+3. **啟動服務**
 ```bash
-docker compose build
-docker compose up bot
+docker compose up -d
 ```
 
-4. 停止容器：
+4. **查看日誌**
+```bash
+docker compose logs -f bot
+```
 
+5. **停止服務**
 ```bash
 docker compose down
 ```
 
-### 方法二：本地開發
+## 🔧 開發
 
-1. 安裝依賴：
-   - Go 1.22+
-   - FFmpeg
-   - Python 3 與 yt-dlp
-
-2. 安裝 Go 依賴：
+### 進入開發環境
 
 ```bash
-go mod tidy
-```
-
-3. 建立並設定 `.env` 檔案（同上）
-
-4. 啟動 Bot：
-
-```bash
-go run ./cmd/bot
-```
-
-## Docker 開發工作流程
-
-### 開發環境
-
-進入開發容器進行互動式開發：
-
-```bash
-# 啟動開發工作區
+# 啟動開發容器
 docker compose up -d workspace
 
 # 進入容器
 docker compose exec workspace bash
 
-# 在容器內執行
-go test ./...
-go run ./cmd/bot
+# 編譯並運行
+cd /workspace
+go build -o bin/bot ./cmd/bot
+./bin/bot
 ```
 
-### 測試
+### 運行測試
 
 ```bash
+# 在容器內
 docker compose exec workspace go test ./...
+
+# 運行特定測試
+docker compose exec workspace go test ./internal/command -v
 ```
 
-## 專案架構
-
-```
-cmd/bot/               # 應用程式入口
-internal/
-  ├── audio/          # 音訊處理管道 (ffmpeg → opus)
-  ├── bot/            # Bot 生命週期與事件處理
-  ├── command/        # Discord slash commands
-  ├── config/         # 配置載入
-  ├── player/         # 播放器與佇列管理
-  └── youtube/        # YouTube 影片解析
-```
-
-## 測試
-
-所有核心功能都有對應的單元測試：
+### 清理舊指令
 
 ```bash
-go test ./...
+# 清理 Guild 指令
+docker compose exec workspace go run ./cmd/cleanup -clean
+
+# 清理全域指令
+docker compose exec workspace go run ./cmd/cleanup -clean -global
+
+# 列出現有指令
+docker compose exec workspace go run ./cmd/cleanup -list
 ```
 
-## 技術細節
-
-### DAVE 協議問題
-
-我們嘗試過的解決方案：
-1. ✗ 使用 `cartridge-gg/discordgo` fork（需要 libdave C 函式庫，版本不相容）
-2. ✗ 手動編譯 libdave（編譯失敗或找不到符號）
-3. ✗ 降級到較舊的 DAVE fork 版本（仍然缺少必要函數）
-
-**目前做法**：暫時使用官方 `bwmarrin/discordgo`，等待社群提供穩定的 DAVE 支援。
-
-### 語音播放架構
+## 📁 專案結構
 
 ```
-YouTube URL/搜尋
-    ↓ yt-dlp
-Audio Stream URL
-    ↓ ffmpeg
-PCM Audio
-    ↓ gopus encoder
-Opus Packets
-    ↓ discordgo
-Discord Voice
+DiscordBot/
+├── cmd/
+│   ├── bot/              # 主程式入口
+│   └── cleanup/          # 指令清理工具
+├── internal/
+│   ├── bot/              # Bot 核心和事件處理
+│   ├── command/          # Slash Commands 實現
+│   │   ├── play.go       # 播放指令（支援播放清單）
+│   │   ├── download.go   # 下載指令
+│   │   ├── queue.go      # 佇列管理
+│   │   └── ...
+│   ├── config/           # 配置管理
+│   ├── player/           # 播放器和佇列邏輯
+│   └── youtube/          # YouTube 解析
+├── docker-compose.yml    # Docker 服務配置
+├── Dockerfile           # Bot 容器映像
+└── README.md            # 本文件
 ```
 
-## 貢獻
+## ⚙️ 架構設計
+
+### 系統架構
+
+```
+Discord Client
+     ↓
+Discord Bot (Go)
+     ↓
+  ┌─────────────┐
+  │  Commands   │
+  └─────────────┘
+     ↓
+  ┌─────────────┐
+  │  Lavalink   │ ←→ yt-dlp
+  └─────────────┘
+     ↓
+  Audio Stream
+```
+
+### 播放流程
+
+```
+1. 用戶執行 /play
+2. 檢測是否為播放清單
+3. 使用 yt-dlp 提取音訊 URL
+4. 透過 Lavalink 播放音訊
+5. 歌曲結束後自動播放下一首
+```
+
+### 下載流程
+
+```
+1. 用戶執行 /download
+2. yt-dlp 下載並轉換格式
+3. 檢查檔案大小（< 25MB）
+4. 上傳到 Discord
+5. 自動清理暫存檔案
+```
+
+## 🔐 所需權限
+
+Bot 需要以下 Discord 權限：
+
+### 文字權限
+- View Channels (查看頻道)
+- Send Messages (發送訊息)
+- Embed Links (嵌入連結)
+- Attach Files (附加檔案)
+- Use Slash Commands (使用斜線指令)
+
+### 語音權限
+- Connect (連接)
+- Speak (說話)
+- Use Voice Activity (使用語音活動)
+
+### OAuth2 URL
+```
+https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=36702752&scope=bot%20applications.commands
+```
+
+## 🎯 功能限制
+
+- **檔案大小**：下載功能限制 25 MB（Discord 限制）
+- **影片時長**：下載功能限制 10 分鐘
+- **音訊格式**：支援 MP3, M4A, Opus, FLAC, WAV
+
+## 🐛 已知問題
+
+- 私人播放清單無法訪問（需要 YouTube 登入）
+- 部分 YouTube 影片可能因地區限制無法播放
+
+## 🛠️ 疑難排解
+
+### Bot 無法連接
+
+檢查：
+1. Bot Token 是否正確
+2. Bot 是否已加入伺服器
+3. Lavalink 服務是否正常運行
+
+```bash
+docker compose ps
+docker compose logs lavalink
+```
+
+### 無法播放音樂
+
+檢查：
+1. 是否在語音頻道內
+2. Bot 是否有正確的權限
+3. Lavalink 日誌是否有錯誤
+
+```bash
+docker compose logs bot
+```
+
+### 指令不顯示
+
+執行清理並重啟：
+```bash
+docker compose exec workspace go run ./cmd/cleanup -clean
+docker compose restart bot
+```
+
+## 📝 更新日誌
+
+### v2.0.0 (2026-06-20)
+- ✅ 完整重寫使用 Lavalink
+- ✅ 新增播放清單支援
+- ✅ 新增下載功能
+- ✅ 新增 /help 指令
+- ✅ 自動播放下一首
+- ✅ 改善佇列顯示
+
+### v1.0.0 (2024-06-18)
+- ✅ 初始版本
+- ✅ 基本播放功能
+
+## 🤝 貢獻
 
 歡迎提交 Pull Request 或回報問題！
 
-## 授權
+## 📄 授權
 
 MIT License
+
+## 🙏 致謝
+
+- [disgo](https://github.com/disgoorg/disgo) - Discord API 庫
+- [disgolink](https://github.com/disgoorg/disgolink) - Lavalink 客戶端
+- [Lavalink](https://github.com/lavalink-devs/Lavalink) - 音訊播放服務
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube 下載工具

@@ -38,6 +38,18 @@ type PlayerController interface {
 	// CurrentSong 回傳目前播放的歌曲；沒有歌曲時 ok 為 false。
 	CurrentSong() (player.Song, bool)
 
+	// SetCurrentSong 設定當前播放的歌曲。
+	SetCurrentSong(song player.Song)
+
+	// ClearCurrentSong 清除當前播放的歌曲。
+	ClearCurrentSong()
+
+	// Dequeue 從佇列取出下一首歌曲。
+	Dequeue() (player.Song, bool)
+
+	// QueueLen 回傳佇列中的歌曲數量。
+	QueueLen() int
+
 	// GuildID 回傳此播放器所屬的 Guild ID。
 	GuildID() string
 

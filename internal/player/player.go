@@ -75,6 +75,11 @@ func (p *GuildPlayer) QueueLen() int {
 	return p.queue.Len()
 }
 
+// Dequeue 從佇列取出下一首歌曲
+func (p *GuildPlayer) Dequeue() (Song, bool) {
+	return p.queue.Dequeue()
+}
+
 // SetCurrentSong 記錄目前正在播放的歌曲。
 func (p *GuildPlayer) SetCurrentSong(song Song) {
 	p.mu.Lock()

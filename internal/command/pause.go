@@ -1,10 +1,15 @@
 package command
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"fmt"
+
+	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/disgo/events"
+)
 
 // PauseCommand 定義 /pause 指令。
 var PauseCommand = &BotCommand{
-	Command: &discordgo.ApplicationCommand{
+	Command: discord.SlashCommandCreate{
 		Name:        "pause",
 		Description: "暫停或繼續播放",
 	},
@@ -12,23 +17,28 @@ var PauseCommand = &BotCommand{
 }
 
 // pauseCommandHandler 處理 /pause 指令，切換暫停/繼續狀態。
-func pauseCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if musicService == nil {
-		respond(s, i, "音樂服務尚未初始化。")
+func pauseCommandHandler(event *events.ApplicationCommandInteractionCreate) {
+	guildID := *event.GuildID()
+
+	// 獲取當前播放狀態
+	isPlaying, isPaused, _ := GetPlayerState(guildID)
+
+	if !isPlaying {
+		respond(event, "目前沒有播放任何歌曲。")
 		return
 	}
 
-	player := musicService.GetOrCreatePlayer(i.GuildID)
-
-	if _, ok := player.CurrentSong(); !ok {
-		respond(s, i, "目前沒有播放任何歌曲。")
+	// 切換暫停狀態
+	newPauseState := !isPaused
+	err := PausePlayback(guildID, newPauseState)
+	if err != nil {
+		respond(event, fmt.Sprintf("❌ 操作失敗：%v", err))
 		return
 	}
 
-	paused := player.TogglePause()
-	if paused {
-		respond(s, i, "⏸️ 已暫停播放。")
+	if newPauseState {
+		respond(event, "⏸️ 已暫停播放。")
 	} else {
-		respond(s, i, "▶️ 已繼續播放。")
+		respond(event, "▶️ 已繼續播放。")
 	}
 }
