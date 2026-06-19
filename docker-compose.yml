@@ -1,6 +1,29 @@
-version: '3.9'
+version: '3.8'
 
 services:
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    container_name: discord-bot-lavalink
+    restart: unless-stopped
+    environment:
+      - _JAVA_OPTIONS=-Xmx512m
+      - SERVER_PORT=2333
+      - LAVALINK_SERVER_PASSWORD=youshallnotpass
+    volumes:
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
+    ports:
+      - "2333:2333"
+    networks:
+      - discord-bot
+
+  ytdlp:
+    image: ghcr.io/yt-dlp/yt-dlp:latest
+    container_name: discord-bot-ytdlp
+    restart: unless-stopped
+    command: --version
+    networks:
+      - discord-bot
+
   workspace:
     build: .
     container_name: discord-bot-workspace
@@ -12,9 +35,16 @@ services:
       - .env
     environment:
       - GUILD_ID
+      - LAVALINK_HOST=lavalink
+      - LAVALINK_PORT=2333
+      - LAVALINK_PASSWORD=youshallnotpass
     tty: true
     stdin_open: true
     command: tail -f /dev/null
+    networks:
+      - discord-bot
+    depends_on:
+      - lavalink
 
   bot:
     build: .
@@ -27,7 +57,17 @@ services:
       - .env
     environment:
       - GUILD_ID
+      - LAVALINK_HOST=lavalink
+      - LAVALINK_PORT=2333
+      - LAVALINK_PASSWORD=youshallnotpass
     command: go run ./cmd/bot
     depends_on:
       - workspace
+      - lavalink
     restart: unless-stopped
+    networks:
+      - discord-bot
+
+networks:
+  discord-bot:
+    driver: bridge

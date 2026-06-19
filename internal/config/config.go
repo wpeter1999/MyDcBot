@@ -9,8 +9,9 @@ import (
 
 // Config 存放應用程式配置
 type Config struct {
-	BotToken  string
-	GuildID   string
+	BotToken string
+	GuildID  string
+	// CwaApiKey 已棄用 - weather 指令將被移除
 	CwaApiKey string
 }
 

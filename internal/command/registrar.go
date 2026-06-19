@@ -1,36 +1,49 @@
 package command
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"context"
+
+	"github.com/disgoorg/disgo/bot"
+	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/snowflake/v2"
+)
 
 // RegisterCommands 將 CommandRegistry 中的指令註冊到 Discord
-func RegisterCommands(registrar CommandRegistrar, appID, guildID string) ([]*discordgo.ApplicationCommand, map[string]func(*discordgo.Session, *discordgo.InteractionCreate), error) {
-	registeredCommands := make([]*discordgo.ApplicationCommand, 0, len(CommandRegistry))
-	handlers := make(map[string]func(*discordgo.Session, *discordgo.InteractionCreate), len(CommandRegistry))
+func RegisterCommands(client bot.Client, appID snowflake.ID, guildID snowflake.ID) ([]snowflake.ID, map[string]InteractionHandler, error) {
+	ctx := context.Background()
+
+	// 準備指令定義
+	commands := make([]discord.ApplicationCommandCreate, 0, len(CommandRegistry))
+	handlers := make(map[string]InteractionHandler, len(CommandRegistry))
 
 	for _, cmd := range CommandRegistry {
-		created, err := registrar.ApplicationCommandCreate(appID, guildID, cmd.Command)
-		if err != nil {
-			return nil, nil, err
-		}
-		registeredCommands = append(registeredCommands, created)
-		handlers[cmd.Command.Name] = cmd.Handler
+		commands = append(commands, cmd.Command)
+		handlers[cmd.Command.CommandName()] = cmd.Handler
 	}
 
-	return registeredCommands, handlers, nil
-}
+	// 註冊指令
+	var registeredCommands []discord.ApplicationCommand
+	var err error
 
-// HandleInteraction 根據指令名稱分派 handler
-func HandleInteraction(handlers map[string]func(*discordgo.Session, *discordgo.InteractionCreate), s *discordgo.Session, i *discordgo.InteractionCreate) bool {
-	if i.Type != discordgo.InteractionApplicationCommand {
-		return false
+	if guildID != 0 {
+		// Guild commands (faster for testing)
+		registeredCommands, err = client.Rest().SetGuildCommands(appID, guildID, commands)
+	} else {
+		// Global commands (takes up to 1 hour to propagate)
+		registeredCommands, err = client.Rest().SetGlobalCommands(appID, commands)
 	}
 
-	name := i.ApplicationCommandData().Name
-	handler, ok := handlers[name]
-	if !ok {
-		return false
+	if err != nil {
+		return nil, nil, err
 	}
 
-	handler(s, i)
-	return true
+	// 提取 command IDs
+	commandIDs := make([]snowflake.ID, len(registeredCommands))
+	for i, cmd := range registeredCommands {
+		commandIDs[i] = cmd.ID()
+	}
+
+	_ = ctx // 保留供未來使用
+
+	return commandIDs, handlers, nil
 }

@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -8,20 +9,28 @@ import (
 
 	"discordbot/internal/command"
 	"discordbot/internal/config"
+	"discordbot/internal/player"
+	"discordbot/internal/youtube"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/disgoorg/disgo"
+	"github.com/disgoorg/disgo/bot"
+	"github.com/disgoorg/disgo/cache"
+	"github.com/disgoorg/disgo/events"
+	"github.com/disgoorg/disgo/gateway"
+	"github.com/disgoorg/disgolink/v3/disgolink"
+	"github.com/disgoorg/snowflake/v2"
 )
 
 var (
-	openSession = func(s *discordgo.Session) error {
-		return s.Open()
+	openGateway = func(ctx context.Context, client bot.Client) error {
+		return client.OpenGateway(ctx)
 	}
-	closeSession = func(s *discordgo.Session) error {
-		return s.Close()
+	closeGateway = func(ctx context.Context, client bot.Client) {
+		client.Close(ctx)
 	}
-	registerBotCommands      = command.RegisterCommands
-	deleteApplicationCommand = func(s *discordgo.Session, appID, guildID, commandID string) error {
-		return s.ApplicationCommandDelete(appID, guildID, commandID)
+	registerBotCommands = command.RegisterCommands
+	deleteGuildCommand  = func(ctx context.Context, client bot.Client, appID snowflake.ID, guildID snowflake.ID, commandID snowflake.ID) error {
+		return client.Rest().DeleteGuildCommand(appID, guildID, commandID)
 	}
 	notifyShutdownSignal = func(stop chan<- os.Signal) {
 		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
@@ -30,43 +39,123 @@ var (
 
 // Bot 封裝 Discord Bot 實例
 type Bot struct {
-	Session            *discordgo.Session
-	registeredCommands []*discordgo.ApplicationCommand
-	commandHandlers    map[string]func(*discordgo.Session, *discordgo.InteractionCreate)
+	Client            bot.Client
+	Lavalink          disgolink.Client
+	registeredCommands []snowflake.ID
+	commandHandlers    map[string]command.InteractionHandler
 	cfg                *config.Config
+	playerManager      *player.Manager
 }
 
 // New 建立新的 Bot 實例
 func New(cfg *config.Config) (*Bot, error) {
-	dg, err := discordgo.New("Bot " + cfg.BotToken)
+	// 初始化 player manager（佇列容量 50）
+	playerManager := player.NewManager(50)
+
+	// 初始化 YouTube resolver
+	youtubeRunner := youtube.NewExecCommandRunner()
+	youtubeResolver := youtube.NewResolver(youtubeRunner)
+
+	// 設定全域服務（供指令使用）
+	command.SetMusicService(command.NewDefaultMusicService(playerManager))
+	command.SetYouTubeResolver(youtubeResolver)
+
+	b := &Bot{
+		cfg:           cfg,
+		playerManager: playerManager,
+	}
+
+	// 建立 disgo client
+	client, err := disgo.New(cfg.BotToken,
+		bot.WithGatewayConfigOpts(
+			gateway.WithIntents(
+				gateway.IntentGuilds,
+				gateway.IntentGuildVoiceStates,
+			),
+		),
+		bot.WithCacheConfigOpts(
+			cache.WithCaches(
+				cache.FlagGuilds,
+				cache.FlagVoiceStates,
+			),
+		),
+		bot.WithEventListeners(&events.ListenerAdapter{
+			OnApplicationCommandInteraction: b.onApplicationCommandInteraction,
+			OnGuildVoiceStateUpdate: func(event *events.GuildVoiceStateUpdate) {
+				log.Printf("[Voice Event] Voice state updated for user %s in guild %s", event.VoiceState.UserID, event.VoiceState.GuildID)
+				if b.Lavalink != nil && event.VoiceState.UserID == b.Client.ApplicationID() {
+					// 只處理 bot 自己的 voice state 變更
+					b.Lavalink.OnVoiceStateUpdate(context.Background(), event.VoiceState.GuildID, event.VoiceState.ChannelID, event.VoiceState.SessionID)
+				}
+			},
+			OnVoiceServerUpdate: func(event *events.VoiceServerUpdate) {
+				endpointStr := "nil"
+				if event.Endpoint != nil {
+					endpointStr = *event.Endpoint
+				}
+				log.Printf("[Voice Event] Voice server updated: %s", endpointStr)
+				if b.Lavalink != nil && event.Endpoint != nil {
+					b.Lavalink.OnVoiceServerUpdate(context.Background(), event.GuildID, event.Token, *event.Endpoint)
+				}
+			},
+		}),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	b := &Bot{
-		Session: dg,
-		cfg:     cfg,
-	}
+	b.Client = client
 
-	dg.AddHandler(b.interactionCreate)
+	// 初始化 Lavalink client
+	log.Printf("[Lavalink] Initializing Lavalink client...")
+	b.Lavalink = disgolink.New(client.ApplicationID())
+
+	// 設定全域服務（供指令使用）
+	command.SetLavalinkClient(b.Lavalink)
 
 	return b, nil
 }
 
 // Start 啟動 Bot
 func (b *Bot) Start() error {
-	err := openSession(b.Session)
+	ctx := context.Background()
+
+	err := openGateway(ctx, b.Client)
 	if err != nil {
 		return err
 	}
+
+	// 連線到 Lavalink
+	log.Printf("[Lavalink] Connecting to Lavalink server...")
+	_, err = b.Lavalink.AddNode(ctx, disgolink.NodeConfig{
+		Name:     "main",
+		Address:  "lavalink:2333",
+		Password: "youshallnotpass",
+		Secure:   false,
+	})
+	if err != nil {
+		log.Printf("[Lavalink] Failed to connect to Lavalink: %v", err)
+		return err
+	}
+	log.Printf("[Lavalink] Successfully connected to Lavalink")
+
+	// 註冊 Lavalink 事件處理器
+	b.Lavalink.AddListeners(&BotEventListener{bot: b})
+	log.Printf("[Lavalink] Event handlers registered")
 
 	// 註冊指令
-	commands, handlers, err := registerBotCommands(b.Session, b.Session.State.User.ID, b.cfg.GuildID)
+	appID := b.Client.ApplicationID()
+	var guildID snowflake.ID
+	if b.cfg.GuildID != "" {
+		guildID = snowflake.MustParse(b.cfg.GuildID)
+	}
+
+	commandIDs, handlers, err := registerBotCommands(b.Client, appID, guildID)
 	if err != nil {
 		return err
 	}
 
-	b.registeredCommands = commands
+	b.registeredCommands = commandIDs
 	b.commandHandlers = handlers
 
 	return nil
@@ -74,13 +163,21 @@ func (b *Bot) Start() error {
 
 // Stop 停止 Bot 並清理指令
 func (b *Bot) Stop() {
-	guildID := b.cfg.GuildID
-	for _, cmd := range b.registeredCommands {
-		if err := deleteApplicationCommand(b.Session, b.Session.State.User.ID, guildID, cmd.ID); err != nil {
-			log.Printf("failed to delete command %q: %v", cmd.Name, err)
+	ctx := context.Background()
+
+	appID := b.Client.ApplicationID()
+	var guildID snowflake.ID
+	if b.cfg.GuildID != "" {
+		guildID = snowflake.MustParse(b.cfg.GuildID)
+	}
+
+	for _, cmdID := range b.registeredCommands {
+		if err := deleteGuildCommand(ctx, b.Client, appID, guildID, cmdID); err != nil {
+			log.Printf("failed to delete command %d: %v", cmdID, err)
 		}
 	}
-	closeSession(b.Session)
+
+	closeGateway(ctx, b.Client)
 }
 
 // WaitForShutdown 等待中斷訊號
@@ -90,14 +187,10 @@ func (b *Bot) WaitForShutdown() {
 	<-stop
 }
 
-// interactionCreate 處理互動事件
-func (b *Bot) interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if i.Type != discordgo.InteractionApplicationCommand {
-		return
-	}
-
-	name := i.ApplicationCommandData().Name
+// onApplicationCommandInteraction 處理應用程式指令互動事件
+func (b *Bot) onApplicationCommandInteraction(event *events.ApplicationCommandInteractionCreate) {
+	name := event.Data.CommandName()
 	if handler, ok := b.commandHandlers[name]; ok {
-		handler(s, i)
+		handler(event)
 	}
 }
