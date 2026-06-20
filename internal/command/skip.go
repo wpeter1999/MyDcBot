@@ -8,6 +8,7 @@ import (
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
 	"github.com/disgoorg/disgolink/v3/lavalink"
+	"github.com/disgoorg/snowflake/v2"
 )
 
 // SkipCommand 定義 /skip 指令。
@@ -17,6 +18,25 @@ var SkipCommand = &BotCommand{
 		Description: "跳過目前播放的歌曲",
 	},
 	Handler: skipCommandHandler,
+}
+
+// ExecuteSkip 跳過當前歌曲（核心業務邏輯）
+// 返回：是否有下一首歌
+func ExecuteSkip(guildID snowflake.ID, guildPlayer PlayerController) bool {
+	// 檢查是否有下一首歌
+	hasNext := guildPlayer.QueueLen() > 0
+
+	// 停止當前播放
+	lavalinkClient := GetLavalinkClient()
+	if lavalinkClient != nil {
+		player := lavalinkClient.Player(guildID)
+		if player != nil {
+			player.Update(context.Background(), lavalink.WithNullTrack())
+		}
+	}
+	guildPlayer.ClearCurrentSong()
+
+	return hasNext
 }
 
 // skipCommandHandler 處理 /skip 指令，跳過目前播放的歌曲並播放下一首。
@@ -29,26 +49,12 @@ func skipCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	guildID := event.GuildID().String()
 	guildPlayer := musicService.GetOrCreatePlayer(guildID)
 
-	// 檢查是否有下一首歌
-	if guildPlayer.QueueLen() == 0 {
+	hasNext := ExecuteSkip(*event.GuildID(), guildPlayer)
+
+	if !hasNext {
 		RespondWithControlButton(event, "⏭️ 已跳過當前歌曲，但佇列中沒有下一首歌曲了。")
-		// 停止播放
-		lavalinkClient := GetLavalinkClient()
-		if lavalinkClient != nil {
-			player := lavalinkClient.Player(*event.GuildID())
-			player.Update(context.Background(), lavalink.WithNullTrack())
-		}
-		guildPlayer.ClearCurrentSong()
 		return
 	}
-
-	// 停止當前播放
-	lavalinkClient := GetLavalinkClient()
-	if lavalinkClient != nil {
-		player := lavalinkClient.Player(*event.GuildID())
-		player.Update(context.Background(), lavalink.WithNullTrack())
-	}
-	guildPlayer.ClearCurrentSong()
 
 	// 獲取 voice channel
 	voiceState, ok := event.Client().Caches().VoiceState(*event.GuildID(), event.User().ID)

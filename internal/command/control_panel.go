@@ -10,7 +10,6 @@ import (
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
-	"github.com/disgoorg/disgolink/v3/lavalink"
 )
 
 // 按鈕 Custom ID 常量
@@ -194,49 +193,34 @@ func HandleControlPanelInteraction(event *events.ComponentInteractionCreate) {
 
 // 處理暫停按鈕
 func handlePauseButton(event *events.ComponentInteractionCreate, player PlayerController) {
-	lavalinkPlayer := lavalinkClient.Player(*event.GuildID())
-	if lavalinkPlayer == nil {
-		respondToComponentInteraction(event, "❌ 找不到播放器。")
+	newPaused, isPlaying, err := ExecutePauseToggle(*event.GuildID())
+
+	if !isPlaying {
+		respondToComponentInteraction(event, "目前沒有播放任何歌曲。")
 		return
 	}
 
-	paused := lavalinkPlayer.Paused()
-	if err := lavalinkPlayer.Update(context.Background(), lavalink.WithPaused(!paused)); err != nil {
+	if err != nil {
 		respondToComponentInteraction(event, fmt.Sprintf("❌ 操作失敗：%v", err))
 		return
 	}
 
-	if paused {
-		respondToComponentInteraction(event, "▶️ 已恢復播放。")
-	} else {
+	if newPaused {
 		respondToComponentInteraction(event, "⏸️ 已暫停播放。")
+	} else {
+		respondToComponentInteraction(event, "▶️ 已恢復播放。")
 	}
 }
 
 // 處理跳過按鈕
 func handleSkipButton(event *events.ComponentInteractionCreate, player PlayerController) {
-	lavalinkPlayer := lavalinkClient.Player(*event.GuildID())
-	if lavalinkPlayer == nil {
-		respondToComponentInteraction(event, "❌ 找不到播放器。")
-		return
-	}
+	hasNext := ExecuteSkip(*event.GuildID(), player)
 
-	// 檢查佇列是否有歌
-	if player.QueueLen() == 0 {
+	if !hasNext {
 		respondToComponentInteraction(event, "⏭️ 已跳過，但佇列中沒有更多歌曲。")
-		// 停止當前曲目
-		lavalinkPlayer.Update(context.Background(), lavalink.WithNullTrack())
-		player.ClearCurrentSong()
 		return
 	}
 
-	// 停止當前曲目
-	if err := lavalinkPlayer.Update(context.Background(), lavalink.WithNullTrack()); err != nil {
-		respondToComponentInteraction(event, fmt.Sprintf("❌ 跳過失敗：%v", err))
-		return
-	}
-
-	player.ClearCurrentSong()
 	respondToComponentInteraction(event, "⏭️ 正在跳過...")
 
 	// 獲取用戶的語音頻道
@@ -271,23 +255,10 @@ func sendComponentFollowupMessage(event *events.ComponentInteractionCreate, cont
 
 // 處理停止按鈕
 func handleStopButton(event *events.ComponentInteractionCreate, player PlayerController) {
-	lavalinkPlayer := lavalinkClient.Player(*event.GuildID())
-	if lavalinkPlayer == nil {
-		respondToComponentInteraction(event, "❌ 找不到播放器。")
-		return
-	}
-
-	// 停止播放並離開語音頻道
-	err := StopPlayback(event.Client(), *event.GuildID())
+	err := ExecuteStop(event.Client(), *event.GuildID(), player)
 	if err != nil {
-		respondToComponentInteraction(event, fmt.Sprintf("❌ 停止失敗：%v", err))
+		respondToComponentInteraction(event, fmt.Sprintf("❌ %v", err))
 		return
-	}
-
-	player.Stop()
-
-	if err := event.Client().UpdateVoiceState(context.Background(), *event.GuildID(), nil, false, false); err != nil {
-		log.Printf("離開語音頻道時出錯: %v", err)
 	}
 
 	respondToComponentInteraction(event, "⏹️ 已停止播放並清空佇列。")
@@ -295,59 +266,13 @@ func handleStopButton(event *events.ComponentInteractionCreate, player PlayerCon
 
 // 處理當前播放按鈕
 func handleNowPlayingButton(event *events.ComponentInteractionCreate, player PlayerController) {
-	song, ok := player.CurrentSong()
-	if !ok {
-		respondToComponentInteraction(event, "目前沒有播放任何歌曲。")
-		return
-	}
-
-	message := fmt.Sprintf("🎵 正在播放：**%s**\n🔗 %s", song.Title, song.URL)
+	message, _ := FormatNowPlaying(player)
 	respondToComponentInteraction(event, message)
 }
 
 // 處理佇列按鈕
 func handleQueueButton(event *events.ComponentInteractionCreate, player PlayerController) {
-	// 取得當前播放的歌曲
-	currentSong, hasCurrentSong := player.CurrentSong()
-
-	// 取得佇列
-	songs := player.QueueSnapshot()
-	totalSongs := len(songs)
-	if hasCurrentSong {
-		totalSongs++ // 加上正在播放的歌曲
-	}
-
-	if totalSongs == 0 {
-		respondToComponentInteraction(event, "📜 播放佇列是空的")
-		return
-	}
-
-	var message string
-	if hasCurrentSong {
-		message = fmt.Sprintf("📜 **播放佇列 (%d 首歌曲)**\n\n▶️ **正在播放：**\n%s\n", totalSongs, currentSong.Title)
-
-		if len(songs) > 0 {
-			message += "\n**接下來：**\n"
-		}
-	} else {
-		message = fmt.Sprintf("📜 **播放佇列 (%d 首歌曲)**\n\n", totalSongs)
-	}
-
-	// 顯示接下來的歌曲
-	if len(songs) > 0 {
-		maxDisplay := 10
-		if len(songs) <= maxDisplay {
-			for i, song := range songs {
-				message += fmt.Sprintf("%d. %s\n", i+1, song.Title)
-			}
-		} else {
-			for i := 0; i < maxDisplay; i++ {
-				message += fmt.Sprintf("%d. %s\n", i+1, songs[i].Title)
-			}
-			message += fmt.Sprintf("... 還有 %d 首歌曲", len(songs)-maxDisplay)
-		}
-	}
-
+	message := FormatQueueDisplay(player)
 	respondToComponentInteraction(event, message)
 }
 

@@ -16,16 +16,8 @@ var QueueCommand = &BotCommand{
 	Handler: queueCommandHandler,
 }
 
-// queueCommandHandler 處理 /queue 指令，顯示目前佇列中的歌曲。
-func queueCommandHandler(event *events.ApplicationCommandInteractionCreate) {
-	if musicService == nil {
-		respond(event, "音樂服務尚未初始化。")
-		return
-	}
-
-	guildID := event.GuildID().String()
-	guildPlayer := musicService.GetOrCreatePlayer(guildID)
-
+// FormatQueueDisplay 格式化佇列顯示訊息（核心業務邏輯）
+func FormatQueueDisplay(guildPlayer PlayerController) string {
 	// 取得當前播放的歌曲
 	currentSong, hasCurrentSong := guildPlayer.CurrentSong()
 
@@ -37,8 +29,7 @@ func queueCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	}
 
 	if totalSongs == 0 {
-		respond(event, "📜 播放佇列是空的")
-		return
+		return "📜 播放佇列是空的"
 	}
 
 	var message string
@@ -67,5 +58,19 @@ func queueCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 		}
 	}
 
+	return message
+}
+
+// queueCommandHandler 處理 /queue 指令，顯示目前佇列中的歌曲。
+func queueCommandHandler(event *events.ApplicationCommandInteractionCreate) {
+	if musicService == nil {
+		respond(event, "音樂服務尚未初始化。")
+		return
+	}
+
+	guildID := event.GuildID().String()
+	guildPlayer := musicService.GetOrCreatePlayer(guildID)
+
+	message := FormatQueueDisplay(guildPlayer)
 	RespondWithControlButton(event, message)
 }
