@@ -65,13 +65,6 @@ DiscordBot/
 │       ├── pipeline.go        # 舊的音訊管線
 │       └── pipeline_test.go   # 音訊管線測試
 │
-├── .hermes/                    # Hermes AI 工作記錄（已棄用）
-│   ├── plans/                 # 實現計劃
-│   ├── progress/              # 進度記錄
-│   ├── research/              # 研究筆記
-│   ├── summary/               # 總結文檔
-│   └── testing/               # 測試報告
-│
 ├── docker-compose.yml          # Docker 服務編排
 ├── Dockerfile                  # Bot 容器映像
 ├── .env                        # 環境變數（不提交）
