@@ -7,7 +7,6 @@ require (
 	github.com/disgoorg/disgolink/v3 v3.1.0
 	github.com/disgoorg/snowflake/v2 v2.0.3
 	github.com/joho/godotenv v1.5.1
-	layeh.com/gopus v0.0.0-20210501142526-1ee02d434e32
 )
 
 require (

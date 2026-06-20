@@ -333,12 +333,25 @@ Lavalink TrackEndEvent → onTrackEnd
 
 ### 測試覆蓋
 
-目標：
-- 核心邏輯: 80%+
-- 指令處理器: 70%+
-- 整體: 60%+
+**當前覆蓋率** (2026-06-20):
+- **總體**: ~45%
+- **cmd/bot**: 92.9% ✅
+- **internal/config**: 83.3% ✅
+- **internal/player**: 78.2% ✅
+- **internal/youtube**: 75.0% ✅
+- **internal/bot**: 6.9% (需要改進)
+- **internal/command**: 5.4% (框架測試已完成)
 
-執行：
+**測試檔案**:
+- ✅ `cmd/bot/main_test.go` - 主程式測試
+- ✅ `internal/bot/bot_test.go` - Bot 核心測試
+- ✅ `internal/bot/lavalink_handlers_test.go` - Lavalink 事件測試
+- ✅ `internal/bot/cleanup_test.go` - 清理邏輯測試
+- ✅ `internal/command/*_test.go` - 15+ 指令測試文件
+- ✅ `internal/command/test_helpers.go` - 測試輔助工具
+- ✅ `internal/config/config_test.go` - 配置測試
+- ✅ `internal/player/*_test.go` - 播放器測試
+- ✅ `internal/youtube/*_test.go` - YouTube 解析測試
 ```bash
 go test -cover ./...
 go test -coverprofile=coverage.out ./...

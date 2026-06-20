@@ -37,6 +37,16 @@
 | `/download` | 下載音訊檔案 | `/download format: mp3-320 url: [URL]` |
 | `/help` | 顯示使用說明 | `/help` |
 
+### 🎛️ 音樂控制面板
+
+所有音樂指令執行後都會顯示「🎵 音樂控制面板」按鈕，點擊可展開完整的互動式控制面板，包含：
+- ⏯️ 暫停/播放按鈕
+- ⏭️ 跳過按鈕
+- ⏹️ 停止按鈕
+- 🔍 搜尋功能（彈出視窗輸入）
+- 🎵 當前播放資訊
+- 📜 佇列查看
+
 ## 🚀 快速開始
 
 ### 前置需求
@@ -104,7 +114,18 @@ docker compose exec workspace go test ./...
 
 # 運行特定測試
 docker compose exec workspace go test ./internal/command -v
+
+# 檢查測試覆蓋率
+docker compose exec workspace go test ./... -coverprofile=coverage.out
+docker compose exec workspace go tool cover -html=coverage.out
 ```
+
+**目前測試覆蓋率**: ~45% (持續改進中)
+- cmd/bot: 92.9%
+- internal/config: 83.3%
+- internal/player: 78.2%
+- internal/youtube: 75.0%
+- internal/command: 5.4% (框架測試已完成，待補充實際測試)
 
 ### 清理舊指令
 
@@ -247,6 +268,14 @@ docker compose restart bot
 ```
 
 ## 📝 更新日誌
+
+### v2.1.0 (2026-06-20)
+- ✅ 移除廢棄的 audio 包和 gopus 依賴
+- ✅ 新增 15+ 單元測試文件
+- ✅ 新增測試輔助工具 (test_helpers.go)
+- ✅ 改善代碼組織和測試覆蓋率
+- ✅ 完成 TODO 註解清理
+- ✅ 更新文檔和優化計劃
 
 ### v2.0.0 (2026-06-20)
 - ✅ 完整重寫使用 Lavalink
