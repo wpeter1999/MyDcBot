@@ -35,8 +35,8 @@ func stopCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 
 	removed := musicService.RemovePlayer(guildIDStr)
 	if removed {
-		respond(event, "⏹️ 已停止播放並清空佇列。")
+		RespondWithControlButton(event, "⏹️ 已停止播放並清空佇列。")
 	} else {
-		respond(event, "⏹️ 已停止播放。")
+		RespondWithControlButton(event, "⏹️ 已停止播放。")
 	}
 }

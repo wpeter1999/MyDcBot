@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"discordbot/internal/command"
+	"discordbot/internal/player"
 
 	"github.com/disgoorg/disgolink/v3/disgolink"
 	"github.com/disgoorg/disgolink/v3/lavalink"
@@ -40,53 +41,72 @@ func (b *Bot) onTrackStart(player disgolink.Player, event lavalink.TrackStartEve
 func (b *Bot) onTrackEnd(player disgolink.Player, event lavalink.TrackEndEvent) {
 	log.Printf("[Lavalink] Track ended for guild %d: %s (reason: %s)", player.GuildID(), event.Track.Info.Title, event.Reason)
 
-	// 如果是正常結束，自動播放下一首
-	if event.Reason == lavalink.TrackEndReasonFinished {
-		guildIDStr := player.GuildID().String()
-		log.Printf("[Lavalink] Track finished, attempting to play next song...")
+	// 處理正常結束或載入失敗的情況，自動播放下一首
+	// Finished: 正常播放完畢
+	// LoadFailed: 無法載入/播放（例如影片無法播放、版權限制等）
+	shouldPlayNext := event.Reason == lavalink.TrackEndReasonFinished || event.Reason == lavalink.TrackEndReasonLoadFailed
 
-		if pm := b.playerManager; pm != nil {
-			guildPlayer, ok := pm.Get(guildIDStr)
-			if !ok || guildPlayer == nil {
-				log.Printf("[Lavalink] No player found for guild %s", guildIDStr)
-				return
-			}
+	if !shouldPlayNext {
+		return
+	}
 
-			// 從佇列取出下一首歌
-			nextSong, ok := guildPlayer.Dequeue()
-			if !ok {
-				log.Printf("[Lavalink] No more songs in queue for guild %s", guildIDStr)
-				return
-			}
+	if event.Reason == lavalink.TrackEndReasonLoadFailed {
+		log.Printf("[Lavalink] Track failed to load, skipping to next song...")
+	}
 
-			log.Printf("[Lavalink] Playing next song: %s", nextSong.Title)
+	b.playNextSongInQueue(player)
+}
 
-			// 設定為當前播放歌曲
-			guildPlayer.SetCurrentSong(nextSong)
+// playNextSongInQueue 從佇列播放下一首歌曲
+func (b *Bot) playNextSongInQueue(player disgolink.Player) {
+	guildIDStr := player.GuildID().String()
+	log.Printf("[Lavalink] Attempting to play next song...")
 
-			// 異步播放下一首，避免阻塞事件處理器
-			go func() {
-				// 獲取當前的 voice channel ID
-				voiceState, ok := b.Client.Caches().VoiceState(player.GuildID(), b.Client.ApplicationID())
-				if !ok || voiceState.ChannelID == nil {
-					log.Printf("[Lavalink] Could not find voice channel for guild %s", guildIDStr)
-					return
-				}
+	if b.playerManager == nil {
+		log.Printf("[Lavalink] Player manager is nil")
+		return
+	}
 
-				channelID := *voiceState.ChannelID
+	guildPlayer, ok := b.playerManager.Get(guildIDStr)
+	if !ok || guildPlayer == nil {
+		log.Printf("[Lavalink] No player found for guild %s", guildIDStr)
+		return
+	}
 
-				// 使用 yt-dlp 提取並播放
-				err := command.JoinVoiceAndPlayWithYtDlp(b.Client, player.GuildID(), channelID, nextSong.URL)
-				if err != nil {
-					log.Printf("[Lavalink] Failed to play next song: %v", err)
-					// 嘗試 SoundCloud 備用
-					searchQuery := "scsearch:" + nextSong.Title
-					err = command.JoinVoiceAndPlay(b.Client, player.GuildID(), channelID, searchQuery)
-					if err != nil {
-						log.Printf("[Lavalink] Failed to play with SoundCloud backup: %v", err)
-					}
-				}
-			}()
-		}
+	// 清除當前播放歌曲
+	guildPlayer.ClearCurrentSong()
+
+	// 從佇列取出下一首歌
+	nextSong, ok := guildPlayer.Dequeue()
+	if !ok {
+		log.Printf("[Lavalink] No more songs in queue for guild %s", guildIDStr)
+		return
+	}
+
+	log.Printf("[Lavalink] Playing next song: %s", nextSong.Title)
+	guildPlayer.SetCurrentSong(nextSong)
+
+	// 異步播放下一首
+	go b.playNextSongAsync(player, nextSong)
+}
+
+// playNextSongAsync 異步播放下一首歌曲
+func (b *Bot) playNextSongAsync(player disgolink.Player, song player.Song) {
+	// 獲取語音頻道 ID
+	voiceState, ok := b.Client.Caches().VoiceState(player.GuildID(), b.Client.ApplicationID())
+	if !ok || voiceState.ChannelID == nil {
+		log.Printf("[Lavalink] Could not find voice channel for guild %s", player.GuildID().String())
+		return
+	}
+
+	channelID := *voiceState.ChannelID
+
+	// 使用統一的播放函數，會自動重試失敗的歌曲
+	playedSong, err := command.PlayNextSongFromQueue(b.Client, player.GuildID(), channelID)
+	if err != nil {
+		log.Printf("[Lavalink] Failed to play any song from queue: %v", err)
+	} else if playedSong != nil {
+		log.Printf("[Lavalink] Auto-playing: %s", playedSong.Title)
 	}
 }
+

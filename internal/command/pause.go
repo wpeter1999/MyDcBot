@@ -37,8 +37,8 @@ func pauseCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	}
 
 	if newPauseState {
-		respond(event, "⏸️ 已暫停播放。")
+		RespondWithControlButton(event, "⏸️ 已暫停播放。")
 	} else {
-		respond(event, "▶️ 已繼續播放。")
+		RespondWithControlButton(event, "▶️ 已繼續播放。")
 	}
 }

@@ -67,5 +67,5 @@ func queueCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 		}
 	}
 
-	respond(event, message)
+	RespondWithControlButton(event, message)
 }

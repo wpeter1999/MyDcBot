@@ -58,22 +58,34 @@ func downloadCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 		return
 	}
 
-	// 開始下載
 	updateResponse(event, "⏳ 正在下載音訊檔案，請稍候...")
 
+	// 下載檔案
+	downloadedFile, err := downloadAudioFile(format, url, event.User().ID.String())
+	if err != nil {
+		updateResponse(event, fmt.Sprintf("❌ 下載失敗：%v", err))
+		return
+	}
+	defer os.Remove(downloadedFile) // 清理檔案
+
+	// 驗證並上傳檔案
+	if err := validateAndUploadFile(event, downloadedFile); err != nil {
+		updateResponse(event, fmt.Sprintf("❌ %v", err))
+	}
+}
+
+// downloadAudioFile 下載音訊檔案並返回檔案路徑
+func downloadAudioFile(format, url, userID string) (string, error) {
 	// 創建臨時目錄
 	tempDir := filepath.Join(os.TempDir(), "discord-downloads")
 	os.MkdirAll(tempDir, 0755)
 
 	// 生成唯一檔案名
 	timestamp := time.Now().Unix()
-	userID := event.User().ID.String()
 	outputTemplate := filepath.Join(tempDir, fmt.Sprintf("%s_%d_%%(title)s.%%(ext)s", userID, timestamp))
 
-	// 根據格式設定 yt-dlp 參數
-	args := buildYtDlpArgs(format, url, outputTemplate)
-
 	// 執行 yt-dlp
+	args := buildYtDlpArgs(format, url, outputTemplate)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
@@ -81,25 +93,24 @@ func downloadCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("yt-dlp error: %v, output: %s", err, string(output))
-		updateResponse(event, fmt.Sprintf("❌ 下載失敗：%v", err))
-		return
+		return "", err
 	}
 
 	// 查找下載的檔案
 	files, err := filepath.Glob(filepath.Join(tempDir, fmt.Sprintf("%s_%d_*", userID, timestamp)))
 	if err != nil || len(files) == 0 {
-		updateResponse(event, "❌ 找不到下載的檔案")
-		return
+		return "", fmt.Errorf("找不到下載的檔案")
 	}
 
-	downloadedFile := files[0]
-	defer os.Remove(downloadedFile) // 清理檔案
+	return files[0], nil
+}
 
+// validateAndUploadFile 驗證檔案大小並上傳到 Discord
+func validateAndUploadFile(event *events.ApplicationCommandInteractionCreate, filePath string) error {
 	// 檢查檔案大小
-	fileInfo, err := os.Stat(downloadedFile)
+	fileInfo, err := os.Stat(filePath)
 	if err != nil {
-		updateResponse(event, fmt.Sprintf("❌ 無法讀取檔案資訊：%v", err))
-		return
+		return fmt.Errorf("無法讀取檔案資訊：%v", err)
 	}
 
 	fileSize := fileInfo.Size()
@@ -107,21 +118,18 @@ func downloadCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 
 	if fileSize > maxSize {
 		sizeMB := float64(fileSize) / 1024 / 1024
-		updateResponse(event, fmt.Sprintf("❌ 檔案太大 (%.2f MB)\n💡 建議：使用 Opus 格式或選擇較短的歌曲", sizeMB))
-		return
+		return fmt.Errorf("檔案太大 (%.2f MB)\n💡 建議：使用 Opus 格式或選擇較短的歌曲", sizeMB)
 	}
 
-	// 上傳檔案到 Discord
-	file, err := os.Open(downloadedFile)
+	// 上傳檔案
+	file, err := os.Open(filePath)
 	if err != nil {
-		updateResponse(event, fmt.Sprintf("❌ 無法開啟檔案：%v", err))
-		return
+		return fmt.Errorf("無法開啟檔案：%v", err)
 	}
 	defer file.Close()
 
-	fileName := filepath.Base(downloadedFile)
+	fileName := filepath.Base(filePath)
 	sizeMB := float64(fileSize) / 1024 / 1024
-
 	message := fmt.Sprintf("✅ **下載完成！**\n📦 檔案：`%s`\n📊 大小：%.2f MB", fileName, sizeMB)
 
 	// 更新回應並附加檔案
@@ -141,11 +149,11 @@ func downloadCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 
 	if err != nil {
 		log.Printf("failed to upload file: %v", err)
-		updateResponse(event, fmt.Sprintf("❌ 上傳檔案失敗：%v", err))
-		return
+		return fmt.Errorf("上傳檔案失敗：%v", err)
 	}
 
 	log.Printf("Successfully downloaded and uploaded: %s (%.2f MB)", fileName, sizeMB)
+	return nil
 }
 
 // buildYtDlpArgs 根據格式構建 yt-dlp 參數

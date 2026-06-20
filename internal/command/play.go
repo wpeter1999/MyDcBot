@@ -10,8 +10,10 @@ import (
 	"discordbot/internal/player"
 	"discordbot/internal/youtube"
 
+	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
+	"github.com/disgoorg/snowflake/v2"
 )
 
 // PlayCommand 定義 /play 指令。
@@ -50,25 +52,59 @@ func playCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 		return
 	}
 
-	if musicService == nil {
-		updateResponse(event, "音樂服務尚未初始化。")
+	if !validateServices(event) {
 		return
 	}
 
-	if youtubeResolver == nil {
-		updateResponse(event, "YouTube 解析服務尚未初始化。")
-		return
-	}
-
-	data := event.SlashCommandInteractionData()
-	query := data.String("query")
-
+	query := getQueryFromEvent(event)
 	if query == "" {
 		updateResponse(event, "請提供 YouTube URL 或搜尋關鍵字。")
 		return
 	}
 
-	// 使用 context 控制 resolver 超時
+	song, err := resolveSong(query, event.User().ID.String())
+	if err != nil {
+		updateResponse(event, fmt.Sprintf("❌ 無法解析查詢：%v", err))
+		return
+	}
+
+	guildID, channelID, ok := getVoiceContext(event)
+	if !ok {
+		updateResponse(event, "⚠️ 你必須先加入語音頻道才能播放")
+		return
+	}
+
+	// 檢查是否為播放清單
+	if IsPlaylistURL(query) && strings.HasPrefix(query, "http") {
+		handlePlaylist(event, query, guildID, channelID)
+		return
+	}
+
+	// 處理單曲
+	handleSingleSong(event, song, guildID, channelID)
+}
+
+// validateServices 驗證必要的服務是否已初始化
+func validateServices(event *events.ApplicationCommandInteractionCreate) bool {
+	if musicService == nil {
+		updateResponse(event, "音樂服務尚未初始化。")
+		return false
+	}
+	if youtubeResolver == nil {
+		updateResponse(event, "YouTube 解析服務尚未初始化。")
+		return false
+	}
+	return true
+}
+
+// getQueryFromEvent 從事件中取得查詢字串
+func getQueryFromEvent(event *events.ApplicationCommandInteractionCreate) string {
+	data := event.SlashCommandInteractionData()
+	return data.String("query")
+}
+
+// resolveSong 解析歌曲
+func resolveSong(query, userID string) (*player.Song, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -76,170 +112,211 @@ func playCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	song, err := youtubeResolver.Resolve(ctx, query)
 	if err != nil {
 		log.Printf("YouTube 解析失敗: %v", err)
-		message := fmt.Sprintf("❌ 無法解析查詢：%v", err)
-		updateResponse(event, message)
-		return
+		return nil, err
 	}
+
 	log.Printf("YouTube 解析成功: %s", song.Title)
+	song.RequestedBy = userID
+	return &song, nil
+}
 
-	// 設定 RequestedBy
-	song.RequestedBy = event.User().ID.String()
-
+// getVoiceContext 取得語音頻道上下文
+func getVoiceContext(event *events.ApplicationCommandInteractionCreate) (snowflake.ID, snowflake.ID, bool) {
 	guildID := *event.GuildID()
-	guildIDStr := guildID.String()
-
-	// 取得使用者所在的語音頻道
 	voiceState, ok := event.Client().Caches().VoiceState(guildID, event.User().ID)
 	if !ok || voiceState.ChannelID == nil {
-		message := fmt.Sprintf("⚠️ 你必須先加入語音頻道才能播放")
-		updateResponse(event, message)
+		return 0, 0, false
+	}
+	return guildID, *voiceState.ChannelID, true
+}
+
+// handlePlaylist 處理播放清單
+func handlePlaylist(event *events.ApplicationCommandInteractionCreate, query string, guildID, channelID snowflake.ID) {
+	log.Printf("檢測到播放清單 URL，提取播放清單...")
+	entries, err := ExtractPlaylist(query)
+	if err != nil {
+		log.Printf("提取播放清單失敗: %v", err)
+		updateResponse(event, fmt.Sprintf("❌ 提取播放清單失敗：%v", err))
 		return
 	}
 
-	channelID := *voiceState.ChannelID
+	if len(entries) == 0 {
+		updateResponse(event, "❌ 播放清單是空的")
+		return
+	}
 
-	// 檢查是否為播放清單 URL
-	if IsPlaylistURL(query) && strings.HasPrefix(query, "http") {
-		log.Printf("檢測到播放清單 URL，提取播放清單...")
-		entries, err := ExtractPlaylist(query)
-		if err != nil {
-			log.Printf("提取播放清單失敗: %v", err)
-			message := fmt.Sprintf("❌ 提取播放清單失敗：%v", err)
-			updateResponse(event, message)
-			return
+	// 加入佇列並播放第一首
+	guildPlayer := musicService.GetOrCreatePlayer(guildID.String())
+	enqueuePlaylistEntries(guildPlayer, entries, event.User().ID.String())
+
+	err = JoinVoiceAndPlayWithYtDlp(event.Client(), guildID, channelID, entries[0].URL)
+	if err != nil {
+		log.Printf("播放失敗: %v", err)
+		updateResponse(event, fmt.Sprintf("❌ 播放失敗：%v", err))
+		return
+	}
+
+	// 設定第一首為當前播放
+	setFirstSongAsCurrent(guildPlayer, entries[0], event.User().ID.String())
+
+	log.Printf("成功開始播放")
+	// 播放成功，更新語音頻道狀態
+	go UpdateVoiceChannelStatus(event.Client(), channelID, entries[0].Title)
+	message := buildPlaylistMessage(entries)
+	updateResponseWithControlButton(event, message)
+}
+
+// enqueuePlaylistEntries 將播放清單項目加入佇列（跳過第一首）
+func enqueuePlaylistEntries(guildPlayer PlayerController, entries []PlaylistEntry, userID string) {
+	for i, entry := range entries {
+		if i == 0 {
+			continue // 跳過第一首，因為會直接播放
 		}
-
-		if len(entries) == 0 {
-			updateResponse(event, "❌ 播放清單是空的")
-			return
+		songToAdd := player.Song{
+			Title:       entry.Title,
+			URL:         entry.URL,
+			StreamURL:   "",
+			RequestedBy: userID,
 		}
-
-		// 將所有歌曲加入佇列（播放清單模式）
-		guildPlayer := musicService.GetOrCreatePlayer(guildIDStr)
-		for i, entry := range entries {
-			songToAdd := player.Song{
-				Title:       entry.Title,
-				URL:         entry.URL,
-				StreamURL:   "",
-				RequestedBy: event.User().ID.String(),
-			}
-			// 跳過第一首，因為會直接播放
-			if i == 0 {
-				continue
-			}
-			if err := guildPlayer.Enqueue(songToAdd); err != nil {
-				log.Printf("加入佇列失敗: %s - %v", entry.Title, err)
-			} else {
-				log.Printf("加入佇列: %s", entry.Title)
-			}
-		}
-
-		// 播放第一首
-		err = JoinVoiceAndPlayWithYtDlp(event.Client(), guildID, channelID, entries[0].URL)
-		if err != nil {
-			log.Printf("播放失敗: %v", err)
-			message := fmt.Sprintf("❌ 播放失敗：%v", err)
-			updateResponse(event, message)
-			return
-		}
-
-		// 設定第一首為當前播放歌曲
-		if len(entries) > 0 {
-			firstSong := player.Song{
-				Title:       entries[0].Title,
-				URL:         entries[0].URL,
-				RequestedBy: event.User().ID.String(),
-			}
-			guildPlayer.SetCurrentSong(firstSong)
-		}
-
-		log.Printf("成功開始播放")
-
-		// 構建播放清單訊息
-		playlistMessage := fmt.Sprintf("📋 **播放清單載入成功！**\n\n🎵 共 **%d** 首歌曲已加入佇列\n▶️ **正在播放：** %s\n\n", len(entries), entries[0].Title)
-
-		// 顯示歌曲清單
-		playlistMessage += "**歌曲清單：**\n"
-		maxDisplay := 10
-		if len(entries) > maxDisplay {
-			for i := 0; i < maxDisplay; i++ {
-				if i == 0 {
-					playlistMessage += fmt.Sprintf("▶️ %d. %s\n", i+1, entries[i].Title)
-				} else {
-					playlistMessage += fmt.Sprintf("%d. %s\n", i+1, entries[i].Title)
-				}
-			}
-			playlistMessage += fmt.Sprintf("... 還有 %d 首歌曲", len(entries)-maxDisplay)
+		if err := guildPlayer.Enqueue(songToAdd); err != nil {
+			log.Printf("加入佇列失敗: %s - %v", entry.Title, err)
 		} else {
-			for i, entry := range entries {
-				if i == 0 {
-					playlistMessage += fmt.Sprintf("▶️ %d. %s\n", i+1, entry.Title)
-				} else {
-					playlistMessage += fmt.Sprintf("%d. %s\n", i+1, entry.Title)
-				}
-			}
+			log.Printf("加入佇列: %s", entry.Title)
 		}
+	}
+}
 
-		updateResponse(event, playlistMessage)
-		return
+// setFirstSongAsCurrent 設定第一首歌為當前播放
+func setFirstSongAsCurrent(guildPlayer PlayerController, entry PlaylistEntry, userID string) {
+	firstSong := player.Song{
+		Title:       entry.Title,
+		URL:         entry.URL,
+		RequestedBy: userID,
+	}
+	guildPlayer.SetCurrentSong(firstSong)
+}
+
+// buildPlaylistMessage 構建播放清單訊息
+func buildPlaylistMessage(entries []PlaylistEntry) string {
+	message := fmt.Sprintf("📋 **播放清單載入成功！**\n\n🎵 共 **%d** 首歌曲已加入佇列\n▶️ **正在播放：** %s\n\n", len(entries), entries[0].Title)
+	message += "**歌曲清單：**\n"
+
+	maxDisplay := 10
+	displayCount := len(entries)
+	if displayCount > maxDisplay {
+		displayCount = maxDisplay
 	}
 
-	// 單曲模式：加入佇列
-	guildPlayer := musicService.GetOrCreatePlayer(guildIDStr)
+	for i := 0; i < displayCount; i++ {
+		prefix := ""
+		if i == 0 {
+			prefix = "▶️ "
+		}
+		message += fmt.Sprintf("%s%d. %s\n", prefix, i+1, entries[i].Title)
+	}
 
-	// 檢查是否已經有歌曲在播放
-	_, hasCurrentSong := guildPlayer.CurrentSong()
+	if len(entries) > maxDisplay {
+		message += fmt.Sprintf("... 還有 %d 首歌曲", len(entries)-maxDisplay)
+	}
 
-	if err := guildPlayer.Enqueue(song); err != nil {
+	return message
+}
+
+// handleSingleSong 處理單曲播放
+func handleSingleSong(event *events.ApplicationCommandInteractionCreate, song *player.Song, guildID, channelID snowflake.ID) {
+	guildPlayer := musicService.GetOrCreatePlayer(guildID.String())
+
+	// 檢查是否真的有歌曲正在播放
+	isPlaying, _, _ := GetPlayerState(guildID)
+
+	if err := guildPlayer.Enqueue(*song); err != nil {
 		log.Printf("加入佇列失敗: %v", err)
-		message := fmt.Sprintf("❌ 無法加入佇列：%v", err)
-		updateResponse(event, message)
+		updateResponse(event, fmt.Sprintf("❌ 無法加入佇列：%v", err))
 		return
 	}
 	log.Printf("歌曲已加入佇列: %s", song.Title)
 
-	// 如果沒有正在播放的歌曲，設定為當前播放並開始播放
-	if !hasCurrentSong {
-		// 從佇列取出第一首（剛剛加入的）
-		firstSong, ok := guildPlayer.Dequeue()
-		if ok {
-			guildPlayer.SetCurrentSong(firstSong)
-			song = firstSong // 使用從佇列取出的歌曲
-		}
-	} else {
-		// 已經有歌曲在播放，只回應已加入佇列
+	// 如果已經在播放，只回應已加入佇列
+	if isPlaying {
 		message := fmt.Sprintf("✅ 已加入佇列：**%s**", song.Title)
+		updateResponseWithControlButton(event, message)
+		return
+	}
+
+	// 沒有在播放，從佇列取出並開始播放
+	firstSong, ok := guildPlayer.Dequeue()
+	if ok {
+		guildPlayer.SetCurrentSong(firstSong)
+		song = &firstSong
+	}
+
+	log.Printf("嘗試加入語音頻道並播放...")
+	if err := playWithFallback(event.Client(), guildID, channelID, song); err != nil {
+		message := fmt.Sprintf("✅ 已加入佇列：**%s**\n⚠️ 播放失敗：%v", song.Title, err)
 		updateResponse(event, message)
 		return
 	}
 
-	// 嘗試加入語音頻道並啟動播放（如果尚未播放）
-	log.Printf("嘗試加入語音頻道並播放...")
+	log.Printf("成功開始播放")
+	message := fmt.Sprintf("✅ 正在播放：**%s**", song.Title)
+	updateResponseWithControlButton(event, message)
+}
 
-	err = JoinVoiceAndPlayWithYtDlp(event.Client(), guildID, channelID, song.URL)
+// playWithFallback 嘗試播放，失敗時使用 SoundCloud 備用
+func playWithFallback(client bot.Client, guildID, channelID snowflake.ID, song *player.Song) error {
+	err := JoinVoiceAndPlayWithYtDlp(client, guildID, channelID, song.URL)
 	if err != nil {
 		// yt-dlp 失敗，嘗試 SoundCloud 備用
 		log.Printf("yt-dlp 失敗 (%v)，嘗試 SoundCloud", err)
 		searchQuery := "scsearch:" + song.Title
-		err = JoinVoiceAndPlay(event.Client(), guildID, channelID, searchQuery)
+		err = JoinVoiceAndPlay(client, guildID, channelID, searchQuery)
 		if err != nil {
-			// 兩者都失敗
 			log.Printf("播放失敗: %v", err)
-			message := fmt.Sprintf("✅ 已加入佇列：**%s**\n⚠️ 播放失敗：%v", song.Title, err)
-			updateResponse(event, message)
-			return
+			return err
 		}
 	}
 
-	log.Printf("成功開始播放")
-	message := fmt.Sprintf("✅ 正在播放：**%s**", song.Title)
-	updateResponse(event, message)
+	// 播放成功，更新語音頻道狀態
+	go UpdateVoiceChannelStatus(client, channelID, song.Title)
+	return nil
 }
 
 // updateResponse 更新 deferred response 的輔助函式
 func updateResponse(event *events.ApplicationCommandInteractionCreate, content string) {
 	_, err := event.Client().Rest().UpdateInteractionResponse(event.ApplicationID(), event.Token(), discord.MessageUpdate{
 		Content: &content,
+	})
+	if err != nil {
+		log.Printf("failed to update response: %v", err)
+	}
+}
+
+// updateResponseWithControlButton 更新 deferred response 並附加控制面板按鈕（使用 Embed）
+func updateResponseWithControlButton(event *events.ApplicationCommandInteractionCreate, content string) {
+	// 創建簡單的 Embed
+	embed := discord.NewEmbedBuilder().
+		SetColor(0x5865F2).
+		SetDescription(content).
+		Build()
+
+	components := []discord.ContainerComponent{
+		discord.ActionRowComponent{
+			discord.ButtonComponent{
+				Style:    discord.ButtonStylePrimary,
+				CustomID: ButtonShowPanel,
+				Label:    "🎵 音樂控制面板",
+				Emoji:    &discord.ComponentEmoji{Name: "🎛️"},
+			},
+		},
+	}
+
+	embeds := []discord.Embed{embed}
+	emptyContent := ""
+
+	_, err := event.Client().Rest().UpdateInteractionResponse(event.ApplicationID(), event.Token(), discord.MessageUpdate{
+		Content:    &emptyContent,
+		Embeds:     &embeds,
+		Components: &components,
 	})
 	if err != nil {
 		log.Printf("failed to update response: %v", err)

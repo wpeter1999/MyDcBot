@@ -31,7 +31,7 @@ func skipCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 
 	// 檢查是否有下一首歌
 	if guildPlayer.QueueLen() == 0 {
-		respond(event, "⏭️ 已跳過當前歌曲，但佇列中沒有下一首歌曲了。")
+		RespondWithControlButton(event, "⏭️ 已跳過當前歌曲，但佇列中沒有下一首歌曲了。")
 		// 停止播放
 		lavalinkClient := GetLavalinkClient()
 		if lavalinkClient != nil {
@@ -42,15 +42,13 @@ func skipCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 		return
 	}
 
-	// 從佇列取出下一首
-	nextSong, ok := guildPlayer.Dequeue()
-	if !ok {
-		respond(event, "⏭️ 佇列中沒有下一首歌曲。")
-		return
+	// 停止當前播放
+	lavalinkClient := GetLavalinkClient()
+	if lavalinkClient != nil {
+		player := lavalinkClient.Player(*event.GuildID())
+		player.Update(context.Background(), lavalink.WithNullTrack())
 	}
-
-	// 設定為當前播放
-	guildPlayer.SetCurrentSong(nextSong)
+	guildPlayer.ClearCurrentSong()
 
 	// 獲取 voice channel
 	voiceState, ok := event.Client().Caches().VoiceState(*event.GuildID(), event.User().ID)
@@ -61,19 +59,45 @@ func skipCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 
 	channelID := *voiceState.ChannelID
 
-	respond(event, fmt.Sprintf("⏭️ 已跳過，正在播放：**%s**", nextSong.Title))
+	// 先回應跳過
+	RespondWithControlButton(event, "⏭️ 正在跳過...")
 
-	// 異步播放下一首
+	// 異步播放下一首（會自動重試失敗的歌曲）
 	go func() {
-		err := JoinVoiceAndPlayWithYtDlp(event.Client(), *event.GuildID(), channelID, nextSong.URL)
+		playedSong, err := PlayNextSongFromQueue(event.Client(), *event.GuildID(), channelID)
 		if err != nil {
-			log.Printf("Skip: Failed to play next song: %v", err)
-			// 嘗試 SoundCloud 備用
-			searchQuery := "scsearch:" + nextSong.Title
-			err = JoinVoiceAndPlay(event.Client(), *event.GuildID(), channelID, searchQuery)
-			if err != nil {
-				log.Printf("Skip: Failed with SoundCloud backup: %v", err)
-			}
+			log.Printf("Skip: Failed to play any song from queue: %v", err)
+			// 發送失敗訊息
+			sendFollowupMessage(event, "❌ 無法播放佇列中的任何歌曲")
+		} else if playedSong != nil {
+			log.Printf("Skip: Now playing: %s", playedSong.Title)
+			// 發送成功訊息
+			sendFollowupWithControlButton(event, fmt.Sprintf("✅ 現在播放：**%s**", playedSong.Title))
 		}
 	}()
+}
+
+// sendFollowupMessage 發送 followup 訊息
+func sendFollowupMessage(event *events.ApplicationCommandInteractionCreate, content string) {
+	_, err := event.Client().Rest().CreateFollowupMessage(event.ApplicationID(), event.Token(), discord.MessageCreate{
+		Content: content,
+	})
+	if err != nil {
+		log.Printf("Failed to send followup message: %v", err)
+	}
+}
+
+// sendFollowupWithControlButton 發送帶控制面板按鈕的 followup 訊息
+func sendFollowupWithControlButton(event *events.ApplicationCommandInteractionCreate, content string) {
+	_, err := event.Client().Rest().CreateFollowupMessage(event.ApplicationID(), event.Token(), discord.MessageCreate{
+		Content: content,
+		Components: []discord.ContainerComponent{
+			discord.NewActionRow(
+				discord.NewPrimaryButton("🎵 控制面板", "/control_panel"),
+			),
+		},
+	})
+	if err != nil {
+		log.Printf("Failed to send followup message: %v", err)
+	}
 }
