@@ -86,6 +86,8 @@ func New(cfg *config.Config) (*Bot, error) {
 		),
 		bot.WithEventListeners(&events.ListenerAdapter{
 			OnApplicationCommandInteraction: b.onApplicationCommandInteraction,
+			OnComponentInteraction:          b.onComponentInteraction,
+			OnModalSubmit:                   b.onModalSubmit,
 			OnGuildVoiceStateUpdate: func(event *events.GuildVoiceStateUpdate) {
 				log.Printf("[Voice Event] Voice state updated for user %s in guild %s", event.VoiceState.UserID, event.VoiceState.GuildID)
 				if b.Lavalink != nil && event.VoiceState.UserID == b.Client.ApplicationID() {
@@ -198,4 +200,14 @@ func (b *Bot) onApplicationCommandInteraction(event *events.ApplicationCommandIn
 	if handler, ok := b.commandHandlers[name]; ok {
 		handler(event)
 	}
+}
+
+// onComponentInteraction 處理按鈕和選單等組件互動事件
+func (b *Bot) onComponentInteraction(event *events.ComponentInteractionCreate) {
+	command.HandleControlPanelInteraction(event)
+}
+
+// onModalSubmit 處理 Modal 提交事件
+func (b *Bot) onModalSubmit(event *events.ModalSubmitInteractionCreate) {
+	command.HandleModalSubmit(event)
 }

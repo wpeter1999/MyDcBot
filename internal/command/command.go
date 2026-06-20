@@ -18,8 +18,14 @@ type BotCommand struct {
 }
 
 var respondToInteraction = func(event *events.ApplicationCommandInteractionCreate, content string) {
+	// 使用 Embed 來回應
+	embed := discord.NewEmbedBuilder().
+		SetColor(0x5865F2).
+		SetDescription(content).
+		Build()
+
 	if err := event.CreateMessage(discord.MessageCreate{
-		Content: content,
+		Embeds: []discord.Embed{embed},
 	}); err != nil {
 		log.Printf("failed to respond: %v", err)
 	}

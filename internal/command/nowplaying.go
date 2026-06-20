@@ -33,5 +33,5 @@ func nowPlayingCommandHandler(event *events.ApplicationCommandInteractionCreate)
 	}
 
 	message := fmt.Sprintf("🎵 正在播放：**%s**\n🔗 %s", song.Title, song.URL)
-	respond(event, message)
+	RespondWithControlButton(event, message)
 }

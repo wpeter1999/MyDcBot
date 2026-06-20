@@ -31,7 +31,7 @@ func skipCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 
 	// 檢查是否有下一首歌
 	if guildPlayer.QueueLen() == 0 {
-		respond(event, "⏭️ 已跳過當前歌曲，但佇列中沒有下一首歌曲了。")
+		RespondWithControlButton(event, "⏭️ 已跳過當前歌曲，但佇列中沒有下一首歌曲了。")
 		// 停止播放
 		lavalinkClient := GetLavalinkClient()
 		if lavalinkClient != nil {
@@ -61,7 +61,7 @@ func skipCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 
 	channelID := *voiceState.ChannelID
 
-	respond(event, fmt.Sprintf("⏭️ 已跳過，正在播放：**%s**", nextSong.Title))
+	RespondWithControlButton(event, fmt.Sprintf("⏭️ 已跳過，正在播放：**%s**", nextSong.Title))
 
 	// 異步播放下一首
 	go func() {

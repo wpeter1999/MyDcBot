@@ -180,15 +180,15 @@ func playCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 			}
 		}
 
-		updateResponse(event, playlistMessage)
+		updateResponseWithControlButton(event, playlistMessage)
 		return
 	}
 
 	// 單曲模式：加入佇列
 	guildPlayer := musicService.GetOrCreatePlayer(guildIDStr)
 
-	// 檢查是否已經有歌曲在播放
-	_, hasCurrentSong := guildPlayer.CurrentSong()
+	// 檢查是否真的有歌曲正在播放（檢查 Lavalink player 狀態）
+	isPlaying, _, _ := GetPlayerState(guildID)
 
 	if err := guildPlayer.Enqueue(song); err != nil {
 		log.Printf("加入佇列失敗: %v", err)
@@ -199,7 +199,7 @@ func playCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	log.Printf("歌曲已加入佇列: %s", song.Title)
 
 	// 如果沒有正在播放的歌曲，設定為當前播放並開始播放
-	if !hasCurrentSong {
+	if !isPlaying {
 		// 從佇列取出第一首（剛剛加入的）
 		firstSong, ok := guildPlayer.Dequeue()
 		if ok {
@@ -209,7 +209,7 @@ func playCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	} else {
 		// 已經有歌曲在播放，只回應已加入佇列
 		message := fmt.Sprintf("✅ 已加入佇列：**%s**", song.Title)
-		updateResponse(event, message)
+		updateResponseWithControlButton(event, message)
 		return
 	}
 
@@ -233,13 +233,45 @@ func playCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 
 	log.Printf("成功開始播放")
 	message := fmt.Sprintf("✅ 正在播放：**%s**", song.Title)
-	updateResponse(event, message)
+	updateResponseWithControlButton(event, message)
 }
 
 // updateResponse 更新 deferred response 的輔助函式
 func updateResponse(event *events.ApplicationCommandInteractionCreate, content string) {
 	_, err := event.Client().Rest().UpdateInteractionResponse(event.ApplicationID(), event.Token(), discord.MessageUpdate{
 		Content: &content,
+	})
+	if err != nil {
+		log.Printf("failed to update response: %v", err)
+	}
+}
+
+// updateResponseWithControlButton 更新 deferred response 並附加控制面板按鈕（使用 Embed）
+func updateResponseWithControlButton(event *events.ApplicationCommandInteractionCreate, content string) {
+	// 創建簡單的 Embed
+	embed := discord.NewEmbedBuilder().
+		SetColor(0x5865F2).
+		SetDescription(content).
+		Build()
+
+	components := []discord.ContainerComponent{
+		discord.ActionRowComponent{
+			discord.ButtonComponent{
+				Style:    discord.ButtonStylePrimary,
+				CustomID: ButtonShowPanel,
+				Label:    "🎵 音樂控制面板",
+				Emoji:    &discord.ComponentEmoji{Name: "🎛️"},
+			},
+		},
+	}
+
+	embeds := []discord.Embed{embed}
+	emptyContent := ""
+
+	_, err := event.Client().Rest().UpdateInteractionResponse(event.ApplicationID(), event.Token(), discord.MessageUpdate{
+		Content:    &emptyContent,
+		Embeds:     &embeds,
+		Components: &components,
 	})
 	if err != nil {
 		log.Printf("failed to update response: %v", err)
