@@ -277,8 +277,9 @@ func handleStopButton(event *events.ComponentInteractionCreate, player PlayerCon
 		return
 	}
 
-	// 停止播放
-	if err := lavalinkPlayer.Update(context.Background(), lavalink.WithNullTrack()); err != nil {
+	// 停止播放並離開語音頻道
+	err := StopPlayback(event.Client(), *event.GuildID())
+	if err != nil {
 		respondToComponentInteraction(event, fmt.Sprintf("❌ 停止失敗：%v", err))
 		return
 	}

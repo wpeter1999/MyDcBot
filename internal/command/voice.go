@@ -1,9 +1,12 @@
 package command
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 
 	"discordbot/internal/player"
 
@@ -94,6 +97,13 @@ func StopPlayback(client bot.Client, guildID snowflake.ID) error {
 	ctx := context.Background()
 
 	log.Printf("[Voice] Stopping playback for guild %s", guildID)
+
+	// 獲取當前語音頻道以清除狀態
+	voiceState, ok := client.Caches().VoiceState(guildID, client.ApplicationID())
+	if ok && voiceState.ChannelID != nil {
+		// 清除語音頻道狀態
+		go ClearVoiceChannelStatus(client, *voiceState.ChannelID)
+	}
 
 	// 停止 Lavalink player
 	lavalinkClient := GetLavalinkClient()
@@ -187,6 +197,8 @@ func PlayNextSongFromQueue(client bot.Client, guildID snowflake.ID, channelID sn
 		err := JoinVoiceAndPlayWithYtDlp(client, guildID, channelID, nextSong.URL)
 		if err == nil {
 			log.Printf("[AutoPlay] Successfully playing: %s", nextSong.Title)
+			// 更新語音頻道狀態
+			go UpdateVoiceChannelStatus(client, channelID, nextSong.Title)
 			return &nextSong, nil
 		}
 
@@ -197,6 +209,8 @@ func PlayNextSongFromQueue(client bot.Client, guildID snowflake.ID, channelID sn
 		err = JoinVoiceAndPlay(client, guildID, channelID, searchQuery)
 		if err == nil {
 			log.Printf("[AutoPlay] Successfully playing via SoundCloud: %s", nextSong.Title)
+			// 更新語音頻道狀態
+			go UpdateVoiceChannelStatus(client, channelID, nextSong.Title)
 			return &nextSong, nil
 		}
 
@@ -207,3 +221,89 @@ func PlayNextSongFromQueue(client bot.Client, guildID snowflake.ID, channelID sn
 	return nil, fmt.Errorf("failed to play any song from queue after %d attempts", maxAttempts)
 }
 
+// UpdateVoiceChannelStatus 更新語音頻道狀態顯示當前播放的歌曲
+// Discord API: PUT /channels/{channel.id}/voice-status
+func UpdateVoiceChannelStatus(client bot.Client, channelID snowflake.ID, songTitle string) error {
+	// 限制狀態長度為 500 字符（Discord 限制）
+	status := fmt.Sprintf("🎵 %s", songTitle)
+	if len(status) > 500 {
+		status = status[:497] + "..."
+	}
+
+	// 構建請求體
+	payload := map[string]string{
+		"status": status,
+	}
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	// Discord API 端點
+	url := fmt.Sprintf("https://discord.com/api/v10/channels/%s/voice-status", channelID)
+
+	// 創建 HTTP 請求
+	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// 設置請求頭
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bot %s", client.Token()))
+
+	// 發送請求
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		log.Printf("[VoiceChannel] Failed to update channel status: %v", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		log.Printf("[VoiceChannel] Failed to update channel status, status code: %d", resp.StatusCode)
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	log.Printf("[VoiceChannel] Updated channel status: %s", status)
+	return nil
+}
+
+// ClearVoiceChannelStatus 清除語音頻道狀態
+func ClearVoiceChannelStatus(client bot.Client, channelID snowflake.ID) error {
+	// 發送空字符串來清除狀態
+	payload := map[string]string{
+		"status": "",
+	}
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	url := fmt.Sprintf("https://discord.com/api/v10/channels/%s/voice-status", channelID)
+
+	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bot %s", client.Token()))
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		log.Printf("[VoiceChannel] Failed to clear channel status: %v", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		log.Printf("[VoiceChannel] Failed to clear channel status, status code: %d", resp.StatusCode)
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	log.Printf("[VoiceChannel] Cleared channel status")
+	return nil
+}

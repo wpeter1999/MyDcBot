@@ -160,6 +160,8 @@ func handlePlaylist(event *events.ApplicationCommandInteractionCreate, query str
 	setFirstSongAsCurrent(guildPlayer, entries[0], event.User().ID.String())
 
 	log.Printf("成功開始播放")
+	// 播放成功，更新語音頻道狀態
+	go UpdateVoiceChannelStatus(event.Client(), channelID, entries[0].Title)
 	message := buildPlaylistMessage(entries)
 	updateResponseWithControlButton(event, message)
 }
@@ -273,6 +275,9 @@ func playWithFallback(client bot.Client, guildID, channelID snowflake.ID, song *
 			return err
 		}
 	}
+
+	// 播放成功，更新語音頻道狀態
+	go UpdateVoiceChannelStatus(client, channelID, song.Title)
 	return nil
 }
 
