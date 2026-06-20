@@ -25,9 +25,9 @@ func TestHelpCommand(t *testing.T) {
 }
 
 func TestHelpCommandContent(t *testing.T) {
-	t.Run("帮助信息包含所有指令", func(t *testing.T) {
-		// 验证帮助消息包含所有核心指令
-		_ = []string{
+	t.Run("幫助訊息包含所有指令", func(t *testing.T) {
+		// 驗證幫助訊息包含所有核心指令
+		requiredCommands := []string{
 			"/play",
 			"/pause",
 			"/skip",
@@ -37,17 +37,18 @@ func TestHelpCommandContent(t *testing.T) {
 			"/download",
 		}
 
-		// Note: 实际测试需要调用 helpCommandHandler 并捕获输出
-		// 这里提供测试框架
-
-		// mockEvent := createMockEvent()
-		// helpCommandHandler(mockEvent)
-		// output := captureOutput(mockEvent)
-
-		// for _, cmd := range requiredCommands {
-		// 	if !strings.Contains(output, cmd) {
-		// 		t.Errorf("Help message should contain command %s", cmd)
-		// 	}
-		// }
+		// 驗證所有必需指令都存在於註冊表中
+		for _, cmdName := range requiredCommands {
+			found := false
+			for _, cmd := range CommandRegistry {
+				if "/"+cmd.Command.CommandName() == cmdName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("必需的指令 %s 未在 CommandRegistry 中找到", cmdName)
+			}
+		}
 	})
 }

@@ -11,27 +11,27 @@ func TestIsPlaylistURL(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "播放清单_list参数",
+			name: "播放清單_list參數",
 			url:  "https://www.youtube.com/watch?v=xxx&list=PLxxx",
 			want: true,
 		},
 		{
-			name: "播放清单_playlist路径",
+			name: "播放清單_playlist路徑",
 			url:  "https://www.youtube.com/playlist?list=PLxxx",
 			want: true,
 		},
 		{
-			name: "单个影片",
+			name: "單個影片",
 			url:  "https://www.youtube.com/watch?v=xxx",
 			want: false,
 		},
 		{
-			name: "搜索关键字",
-			url:  "周杰伦 晴天",
+			name: "搜尋關鍵字",
+			url:  "周杰倫 晴天",
 			want: false,
 		},
 		{
-			name: "空字符串",
+			name: "空字串",
 			url:  "",
 			want: false,
 		},
@@ -48,7 +48,7 @@ func TestIsPlaylistURL(t *testing.T) {
 }
 
 func TestPlaylistEntry(t *testing.T) {
-	t.Run("PlaylistEntry_结构定义", func(t *testing.T) {
+	t.Run("PlaylistEntry_結構定義", func(t *testing.T) {
 		entry := PlaylistEntry{
 			ID:    "test123",
 			Title: "Test Song",

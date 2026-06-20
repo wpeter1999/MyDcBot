@@ -5,7 +5,7 @@ import (
 )
 
 func TestYtDlpInfo(t *testing.T) {
-	t.Run("YtDlpInfo_结构定义", func(t *testing.T) {
+	t.Run("YtDlpInfo_結構定義", func(t *testing.T) {
 		info := YtDlpInfo{
 			URL:   "https://youtube.com/watch?v=test",
 			Title: "Test Video",

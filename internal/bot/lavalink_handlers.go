@@ -4,7 +4,6 @@ import (
 	"log"
 
 	"discordbot/internal/command"
-	"discordbot/internal/player"
 
 	"github.com/disgoorg/disgolink/v3/disgolink"
 	"github.com/disgoorg/disgolink/v3/lavalink"
@@ -76,22 +75,18 @@ func (b *Bot) playNextSongInQueue(player disgolink.Player) {
 	// 清除當前播放歌曲
 	guildPlayer.ClearCurrentSong()
 
-	// 從佇列取出下一首歌
-	nextSong, ok := guildPlayer.Dequeue()
-	if !ok {
+	// 檢查佇列是否為空
+	if guildPlayer.QueueLen() == 0 {
 		log.Printf("[Lavalink] No more songs in queue for guild %s", guildIDStr)
 		return
 	}
 
-	log.Printf("[Lavalink] Playing next song: %s", nextSong.Title)
-	guildPlayer.SetCurrentSong(nextSong)
-
-	// 異步播放下一首
-	go b.playNextSongAsync(player, nextSong)
+	// 異步播放下一首（PlayNextSongFromQueue 會自動從佇列取歌）
+	go b.playNextSongAsync(player)
 }
 
 // playNextSongAsync 異步播放下一首歌曲
-func (b *Bot) playNextSongAsync(player disgolink.Player, song player.Song) {
+func (b *Bot) playNextSongAsync(player disgolink.Player) {
 	// 獲取語音頻道 ID
 	voiceState, ok := b.Client.Caches().VoiceState(player.GuildID(), b.Client.ApplicationID())
 	if !ok || voiceState.ChannelID == nil {
@@ -101,7 +96,7 @@ func (b *Bot) playNextSongAsync(player disgolink.Player, song player.Song) {
 
 	channelID := *voiceState.ChannelID
 
-	// 使用統一的播放函數，會自動重試失敗的歌曲
+	// 使用統一的播放函數，會自動從佇列取出下一首並重試失敗的歌曲
 	playedSong, err := command.PlayNextSongFromQueue(b.Client, player.GuildID(), channelID)
 	if err != nil {
 		log.Printf("[Lavalink] Failed to play any song from queue: %v", err)

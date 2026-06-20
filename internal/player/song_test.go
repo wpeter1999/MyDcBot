@@ -5,9 +5,9 @@ import (
 )
 
 func TestSong(t *testing.T) {
-	t.Run("Song_结构定义", func(t *testing.T) {
+	t.Run("Song_結構定義", func(t *testing.T) {
 		song := Song{
-			Title:       "测试歌曲",
+			Title:       "測試歌曲",
 			URL:         "https://youtube.com/watch?v=test",
 			StreamURL:   "https://stream.example.com/audio.m4a",
 			RequestedBy: "user123",
@@ -46,7 +46,7 @@ func TestSong(t *testing.T) {
 		}
 	})
 
-	t.Run("Song_复制", func(t *testing.T) {
+	t.Run("Song_複製", func(t *testing.T) {
 		original := Song{
 			Title:       "原始歌曲",
 			URL:         "https://youtube.com/watch?v=original",
@@ -72,8 +72,8 @@ func TestSong(t *testing.T) {
 			t.Error("Copied song should have same RequestedBy")
 		}
 
-		// 修改复制的歌曲不应影响原始歌曲
-		copied.Title = "修改后的歌曲"
+		// 修改複製的歌曲不應影響原始歌曲
+		copied.Title = "修改後的歌曲"
 		if original.Title == copied.Title {
 			t.Error("Modifying copied song should not affect original")
 		}

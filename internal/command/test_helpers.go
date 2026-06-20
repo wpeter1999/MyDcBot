@@ -52,7 +52,10 @@ func (m *MockPlayerControllerExt) QueueSnapshot() []player.Song {
 	return m.queue
 }
 
-func (m *MockPlayerControllerExt) Stop() {}
+func (m *MockPlayerControllerExt) Stop() {
+	m.queue = nil
+	m.currentSong = nil
+}
 
 func (m *MockPlayerControllerExt) IsStopped() bool {
 	return false

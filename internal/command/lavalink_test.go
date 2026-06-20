@@ -5,7 +5,7 @@ import (
 )
 
 func TestGetLavalinkClient(t *testing.T) {
-	t.Run("初始化时应该为nil", func(t *testing.T) {
+	t.Run("初始化時應該為nil", func(t *testing.T) {
 		// Reset global state
 		lavalinkClient = nil
 
@@ -17,17 +17,19 @@ func TestGetLavalinkClient(t *testing.T) {
 }
 
 func TestSetLavalinkClient(t *testing.T) {
-	t.Run("设置后应该可以获取", func(t *testing.T) {
-		// Note: 实际测试需要 mock disgolink.Client
-		// 这里验证函数签名正确
+	t.Run("設定後應該可以獲取", func(t *testing.T) {
+		// 保存原始狀態
+		originalClient := GetLavalinkClient()
+		defer func() {
+			lavalinkClient = originalClient
+		}()
 
-		// mockClient := &MockLavalinkClient{}
-		// SetLavalinkClient(mockClient)
-
-		// got := GetLavalinkClient()
-		// if got != mockClient {
-		// 	t.Error("GetLavalinkClient() should return the set client")
-		// }
+		// 測試設定為 nil
+		SetLavalinkClient(nil)
+		got := GetLavalinkClient()
+		if got != nil {
+			t.Error("設定為 nil 後，GetLavalinkClient() 應該返回 nil")
+		}
 
 		// Cleanup
 		lavalinkClient = nil
