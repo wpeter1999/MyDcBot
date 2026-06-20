@@ -25,7 +25,7 @@ func TestPlayerErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("错误消息唯一性", func(t *testing.T) {
+	t.Run("錯誤訊息唯一性", func(t *testing.T) {
 		if ErrQueueFull.Error() == ErrPlayerStopped.Error() {
 			t.Error("Error messages should be unique")
 		}

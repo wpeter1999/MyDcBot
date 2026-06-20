@@ -14,25 +14,25 @@ func TestFormatQueueDisplay(t *testing.T) {
 		wantContains []string
 	}{
 		{
-			name: "显示当前播放和佇列",
+			name: "顯示當前播放和佇列",
 			currentSong: &player.Song{
-				Title:       "当前歌曲",
+				Title:       "當前歌曲",
 				RequestedBy: "user123",
 			},
 			queueSongs: []player.Song{
 				{Title: "歌曲1", RequestedBy: "user123"},
 				{Title: "歌曲2", RequestedBy: "user456"},
 			},
-			wantContains: []string{"当前歌曲", "歌曲1", "歌曲2", "▶️"},
+			wantContains: []string{"當前歌曲", "歌曲1", "歌曲2", "▶️"},
 		},
 		{
-			name:         "没有歌曲播放",
+			name:         "沒有歌曲播放",
 			currentSong:  nil,
 			queueSongs:   []player.Song{},
 			wantContains: []string{"播放佇列是空的"},
 		},
 		{
-			name: "只有当前歌曲_无佇列",
+			name: "只有當前歌曲_無佇列",
 			currentSong: &player.Song{
 				Title:       "唯一歌曲",
 				RequestedBy: "user123",
@@ -69,14 +69,14 @@ func TestFormatNowPlaying(t *testing.T) {
 		{
 			name: "有歌曲播放",
 			currentSong: &player.Song{
-				Title:       "测试歌曲",
+				Title:       "測試歌曲",
 				URL:         "https://youtube.com/watch?v=test",
 				RequestedBy: "user123",
 			},
-			wantContains: []string{"测试歌曲", "🎵"},
+			wantContains: []string{"測試歌曲", "🎵"},
 		},
 		{
-			name:         "没有歌曲播放",
+			name:         "沒有歌曲播放",
 			currentSong:  nil,
 			wantContains: []string{"目前沒有播放任何歌曲"},
 		},
@@ -99,7 +99,7 @@ func TestFormatNowPlaying(t *testing.T) {
 	}
 }
 
-// 辅助函数
+// 輔助函數
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || findSubstring(s, substr))
 }

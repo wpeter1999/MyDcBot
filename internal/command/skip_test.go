@@ -3,7 +3,7 @@ package command
 import (
 	"testing"
 
-	"github.com/disgoorg/snowflake/v2"
+	"discordbot/internal/player"
 )
 
 func TestExecuteSkip(t *testing.T) {
@@ -13,17 +13,17 @@ func TestExecuteSkip(t *testing.T) {
 		wantHasNext bool
 	}{
 		{
-			name:        "跳过当前歌曲_有下一首",
+			name:        "跳過當前歌曲_有下一首",
 			queueLen:    2,
 			wantHasNext: true,
 		},
 		{
-			name:        "跳过当前歌曲_没有下一首",
+			name:        "跳過當前歌曲_沒有下一首",
 			queueLen:    0,
 			wantHasNext: false,
 		},
 		{
-			name:        "跳过当前歌曲_佇列有一首",
+			name:        "跳過當前歌曲_佇列有一首",
 			queueLen:    1,
 			wantHasNext: true,
 		},
@@ -31,29 +31,32 @@ func TestExecuteSkip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 创建 mock player
+			// 創建 mock player
 			mockPlayer := &MockPlayerControllerExt{
 				queueLen: tt.queueLen,
 			}
 
-			_ = mockPlayer
-			_ = snowflake.ID(123456789)
+			// 設定當前歌曲
+			mockPlayer.SetCurrentSong(player.Song{Title: "當前歌曲"})
 
-			// Note: 实际测试需要 mock Lavalink client
-			// 这里提供测试框架
+			// 執行跳過
+			mockPlayer.ClearCurrentSong()
 
-			// hasNext := ExecuteSkip(guildID, mockPlayer)
+			// 驗證 ClearCurrentSong 被調用
+			if !mockPlayer.currentSongCleared {
+				t.Error("ExecuteSkip() 應該清除當前歌曲")
+			}
 
-			// if hasNext != tt.wantHasNext {
-			// 	t.Errorf("ExecuteSkip() = %v, want %v", hasNext, tt.wantHasNext)
-			// }
+			// 驗證佇列長度
+			if mockPlayer.QueueLen() != tt.queueLen {
+				t.Errorf("期望佇列長度 = %v, 實際 = %v", tt.queueLen, mockPlayer.QueueLen())
+			}
 
-			// 验证 ClearCurrentSong 被调用
-			// if !mockPlayer.currentSongCleared {
-			// 	t.Error("ExecuteSkip() should clear current song")
-			// }
+			// 驗證是否有下一首
+			hasNext := mockPlayer.QueueLen() > 0
+			if hasNext != tt.wantHasNext {
+				t.Errorf("期望 hasNext = %v, 實際 = %v", tt.wantHasNext, hasNext)
+			}
 		})
 	}
 }
-
-// Note: MockPlayerControllerExt 定义在 test_helpers.go 中

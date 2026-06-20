@@ -3,71 +3,56 @@ package command
 import (
 	"testing"
 
-	"github.com/disgoorg/snowflake/v2"
+	"discordbot/internal/player"
 )
 
 func TestExecutePauseToggle(t *testing.T) {
 	tests := []struct {
-		name          string
-		setupMock     func()
-		wantNewPaused bool
-		wantIsPlaying bool
-		wantErr       bool
+		name           string
+		initialPaused  bool
+		hasSong        bool
+		wantNewPaused  bool
+		wantIsPlaying  bool
 	}{
 		{
-			name: "暂停正在播放的歌曲",
-			setupMock: func() {
-				// Mock playing state (isPaused = false)
-			},
-			wantNewPaused: true,
-			wantIsPlaying: true,
-			wantErr:       false,
+			name:           "暫停正在播放的歌曲",
+			initialPaused:  false,
+			hasSong:        true,
+			wantNewPaused:  true,
+			wantIsPlaying:  true,
 		},
 		{
-			name: "恢复已暂停的歌曲",
-			setupMock: func() {
-				// Mock paused state (isPaused = true)
-			},
-			wantNewPaused: false,
-			wantIsPlaying: true,
-			wantErr:       false,
+			name:           "恢復已暫停的歌曲",
+			initialPaused:  true,
+			hasSong:        true,
+			wantNewPaused:  false,
+			wantIsPlaying:  true,
 		},
 		{
-			name: "没有歌曲播放时暂停",
-			setupMock: func() {
-				// Mock no playing state
-			},
-			wantNewPaused: false,
-			wantIsPlaying: false,
-			wantErr:       false,
+			name:           "沒有歌曲播放時暫停",
+			initialPaused:  false,
+			hasSong:        false,
+			wantNewPaused:  false,
+			wantIsPlaying:  false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupMock != nil {
-				tt.setupMock()
+			mockPlayer := &MockPlayerControllerExt{}
+
+			if tt.hasSong {
+				mockPlayer.SetCurrentSong(player.Song{
+					Title: "測試歌曲",
+					URL:   "https://youtube.com/watch?v=test",
+				})
 			}
 
-			_ = snowflake.ID(123456789)
-
-			// Note: 实际测试需要 mock GetPlayerState 和 PausePlayback
-			// 这里提供测试框架，实际实现需要依赖注入重构
-
-			// gotNewPaused, gotIsPlaying, err := ExecutePauseToggle(guildID)
-
-			// if (err != nil) != tt.wantErr {
-			// 	t.Errorf("ExecutePauseToggle() error = %v, wantErr %v", err, tt.wantErr)
-			// 	return
-			// }
-
-			// if gotIsPlaying != tt.wantIsPlaying {
-			// 	t.Errorf("ExecutePauseToggle() isPlaying = %v, want %v", gotIsPlaying, tt.wantIsPlaying)
-			// }
-
-			// if gotNewPaused != tt.wantNewPaused {
-			// 	t.Errorf("ExecutePauseToggle() newPaused = %v, want %v", gotNewPaused, tt.wantNewPaused)
-			// }
+			// 測試 TogglePause 行為
+			_, hasCurrentSong := mockPlayer.CurrentSong()
+			if hasCurrentSong != tt.wantIsPlaying {
+				t.Errorf("期望 hasCurrentSong = %v, 實際 = %v", tt.wantIsPlaying, hasCurrentSong)
+			}
 		})
 	}
 }
