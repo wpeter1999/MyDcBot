@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	"discordbot/internal/player"
+
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
 	"github.com/disgoorg/disgolink/v3/lavalink"
@@ -355,7 +357,6 @@ func HandleModalSubmit(event *events.ModalSubmitInteractionCreate) {
 		return
 	}
 
-	// 獲取用戶輸入的搜尋關鍵字
 	query := event.Data.Text("search_query")
 	if query == "" {
 		respondToModalInteraction(event, "❌ 請輸入搜尋關鍵字")
@@ -368,17 +369,28 @@ func HandleModalSubmit(event *events.ModalSubmitInteractionCreate) {
 		return
 	}
 
-	// 檢查用戶是否在語音頻道中
+	// 驗證語音頻道
 	voiceState, ok := event.Client().Caches().VoiceState(*event.GuildID(), event.User().ID)
 	if !ok || voiceState.ChannelID == nil {
 		updateModalResponse(event, "⚠️ 你必須先加入語音頻道才能播放")
 		return
 	}
 
-	// 使用 YouTube resolver 搜尋
-	if youtubeResolver == nil {
-		updateModalResponse(event, "❌ YouTube 解析服務尚未初始化")
+	// 搜尋歌曲
+	song, err := searchSongFromModal(query, event.User().ID.String())
+	if err != nil {
+		updateModalResponse(event, fmt.Sprintf("❌ 搜尋失敗：%v", err))
 		return
+	}
+
+	// 播放或加入佇列
+	handleModalSongPlayback(event, song, voiceState)
+}
+
+// searchSongFromModal 從 Modal 搜尋歌曲
+func searchSongFromModal(query, userID string) (player.Song, error) {
+	if youtubeResolver == nil {
+		return player.Song{}, fmt.Errorf("YouTube 解析服務尚未初始化")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -388,21 +400,24 @@ func HandleModalSubmit(event *events.ModalSubmitInteractionCreate) {
 	song, err := youtubeResolver.Resolve(ctx, query)
 	if err != nil {
 		log.Printf("搜尋失敗: %v", err)
-		updateModalResponse(event, fmt.Sprintf("❌ 搜尋失敗：%v", err))
-		return
+		return player.Song{}, err
 	}
 
-	song.RequestedBy = event.User().ID.String()
+	song.RequestedBy = userID
+	return song, nil
+}
 
-	// 加入佇列或開始播放
+// handleModalSongPlayback 處理 Modal 搜尋後的播放邏輯
+func handleModalSongPlayback(event *events.ModalSubmitInteractionCreate, song player.Song, voiceState discord.VoiceState) {
 	guildID := event.GuildID().String()
 	guildPlayer := musicService.GetOrCreatePlayer(guildID)
-	_, hasCurrentSong := guildPlayer.CurrentSong()
 
 	if err := guildPlayer.Enqueue(song); err != nil {
 		updateModalResponse(event, fmt.Sprintf("❌ 加入佇列失敗：%v", err))
 		return
 	}
+
+	_, hasCurrentSong := guildPlayer.CurrentSong()
 
 	if !hasCurrentSong {
 		// 開始播放
@@ -412,7 +427,7 @@ func HandleModalSubmit(event *events.ModalSubmitInteractionCreate) {
 			song = firstSong
 		}
 
-		err = JoinVoiceAndPlayWithYtDlp(event.Client(), *event.GuildID(), *voiceState.ChannelID, song.URL)
+		err := JoinVoiceAndPlayWithYtDlp(event.Client(), *event.GuildID(), *voiceState.ChannelID, song.URL)
 		if err != nil {
 			log.Printf("播放失敗: %v", err)
 			updateModalResponse(event, fmt.Sprintf("❌ 播放失敗：%v", err))
