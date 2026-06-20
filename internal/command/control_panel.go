@@ -221,20 +221,23 @@ func handleSkipButton(event *events.ComponentInteractionCreate, player PlayerCon
 		return
 	}
 
+	// 檢查佇列是否有歌
+	if player.QueueLen() == 0 {
+		respondToComponentInteraction(event, "⏭️ 已跳過，但佇列中沒有更多歌曲。")
+		// 停止當前曲目
+		lavalinkPlayer.Update(context.Background(), lavalink.WithNullTrack())
+		player.ClearCurrentSong()
+		return
+	}
+
 	// 停止當前曲目
 	if err := lavalinkPlayer.Update(context.Background(), lavalink.WithNullTrack()); err != nil {
 		respondToComponentInteraction(event, fmt.Sprintf("❌ 跳過失敗：%v", err))
 		return
 	}
 
-	nextSong, ok := player.Dequeue()
-	if !ok {
-		respondToComponentInteraction(event, "⏭️ 已跳過當前歌曲，佇列中沒有更多歌曲。")
-		return
-	}
-
-	player.SetCurrentSong(nextSong)
-	respondToComponentInteraction(event, fmt.Sprintf("⏭️ 已跳過，正在播放：**%s**", nextSong.Title))
+	player.ClearCurrentSong()
+	respondToComponentInteraction(event, "⏭️ 正在跳過...")
 
 	// 獲取用戶的語音頻道
 	voiceState, ok := event.Client().Caches().VoiceState(*event.GuildID(), event.User().ID)
@@ -243,12 +246,27 @@ func handleSkipButton(event *events.ComponentInteractionCreate, player PlayerCon
 		return
 	}
 
-	// 開始播放下一首
+	// 開始播放下一首（會自動重試失敗的歌曲）
 	go func() {
-		if err := JoinVoiceAndPlayWithYtDlp(event.Client(), *event.GuildID(), *voiceState.ChannelID, nextSong.URL); err != nil {
-			log.Printf("播放下一首失敗: %v", err)
+		playedSong, err := PlayNextSongFromQueue(event.Client(), *event.GuildID(), *voiceState.ChannelID)
+		if err != nil {
+			log.Printf("Skip button: Failed to play any song: %v", err)
+			sendComponentFollowupMessage(event, "❌ 無法播放佇列中的任何歌曲")
+		} else if playedSong != nil {
+			log.Printf("Skip button: Now playing: %s", playedSong.Title)
+			sendComponentFollowupMessage(event, fmt.Sprintf("✅ 現在播放：**%s**", playedSong.Title))
 		}
 	}()
+}
+
+// sendComponentFollowupMessage 發送 component 的 followup 訊息
+func sendComponentFollowupMessage(event *events.ComponentInteractionCreate, content string) {
+	_, err := event.Client().Rest().CreateFollowupMessage(event.ApplicationID(), event.Token(), discord.MessageCreate{
+		Content: content,
+	})
+	if err != nil {
+		log.Printf("Failed to send followup message: %v", err)
+	}
 }
 
 // 處理停止按鈕

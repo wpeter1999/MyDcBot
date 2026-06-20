@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"discordbot/internal/player"
+
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgolink/v3/disgolink"
 	"github.com/disgoorg/disgolink/v3/lavalink"
@@ -160,3 +162,48 @@ func GetPlayerState(guildID snowflake.ID) (isPlaying bool, isPaused bool, track 
 	currentTrack := player.Track()
 	return currentTrack != nil, player.Paused(), currentTrack
 }
+
+// PlayNextSongFromQueue 從佇列播放下一首，失敗時自動重試下一首
+// 返回實際播放的歌曲信息
+func PlayNextSongFromQueue(client bot.Client, guildID snowflake.ID, channelID snowflake.ID) (*player.Song, error) {
+	if musicService == nil {
+		return nil, fmt.Errorf("music service not initialized")
+	}
+
+	guildPlayer := musicService.GetOrCreatePlayer(guildID.String())
+
+	// 嘗試播放佇列中的歌曲，最多嘗試 10 首（避免無限循環）
+	maxAttempts := 10
+	for attempt := 0; attempt < maxAttempts && guildPlayer.QueueLen() > 0; attempt++ {
+		nextSong, ok := guildPlayer.Dequeue()
+		if !ok {
+			return nil, fmt.Errorf("no songs in queue")
+		}
+
+		log.Printf("[AutoPlay] Attempting to play: %s (attempt %d)", nextSong.Title, attempt+1)
+		guildPlayer.SetCurrentSong(nextSong)
+
+		// 嘗試用 yt-dlp 播放
+		err := JoinVoiceAndPlayWithYtDlp(client, guildID, channelID, nextSong.URL)
+		if err == nil {
+			log.Printf("[AutoPlay] Successfully playing: %s", nextSong.Title)
+			return &nextSong, nil
+		}
+
+		log.Printf("[AutoPlay] Failed to play %s: %v, trying SoundCloud...", nextSong.Title, err)
+
+		// 嘗試 SoundCloud 備用
+		searchQuery := "scsearch:" + nextSong.Title
+		err = JoinVoiceAndPlay(client, guildID, channelID, searchQuery)
+		if err == nil {
+			log.Printf("[AutoPlay] Successfully playing via SoundCloud: %s", nextSong.Title)
+			return &nextSong, nil
+		}
+
+		log.Printf("[AutoPlay] SoundCloud also failed for %s: %v, trying next song...", nextSong.Title, err)
+		guildPlayer.ClearCurrentSong()
+	}
+
+	return nil, fmt.Errorf("failed to play any song from queue after %d attempts", maxAttempts)
+}
+
