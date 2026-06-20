@@ -82,8 +82,8 @@ func PlayPlaylist(client bot.Client, guildID snowflake.ID, channelID snowflake.I
 		return fmt.Errorf("播放第一首失敗: %w", err)
 	}
 
-	// TODO: 將剩餘歌曲加入佇列
-	// 這需要整合現有的 player.Manager 佇列系統
+	// 注意：佇列功能已在 play.go 的 handlePlaylist 中實現
+	// 此函數保留用於未來可能的獨立播放清單處理
 
 	return nil
 }
