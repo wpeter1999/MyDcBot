@@ -286,20 +286,45 @@ func handleNowPlayingButton(event *events.ComponentInteractionCreate, player Pla
 
 // 處理佇列按鈕
 func handleQueueButton(event *events.ComponentInteractionCreate, player PlayerController) {
-	songs := player.QueueSnapshot()
+	// 取得當前播放的歌曲
+	currentSong, hasCurrentSong := player.CurrentSong()
 
-	if len(songs) == 0 {
-		respondToComponentInteraction(event, "📜 播放佇列是空的。")
+	// 取得佇列
+	songs := player.QueueSnapshot()
+	totalSongs := len(songs)
+	if hasCurrentSong {
+		totalSongs++ // 加上正在播放的歌曲
+	}
+
+	if totalSongs == 0 {
+		respondToComponentInteraction(event, "📜 播放佇列是空的")
 		return
 	}
 
-	message := "📜 **播放佇列**\n\n"
-	for i, song := range songs {
-		if i >= 10 {
-			message += fmt.Sprintf("... 還有 %d 首歌曲\n", len(songs)-10)
-			break
+	var message string
+	if hasCurrentSong {
+		message = fmt.Sprintf("📜 **播放佇列 (%d 首歌曲)**\n\n▶️ **正在播放：**\n%s\n", totalSongs, currentSong.Title)
+
+		if len(songs) > 0 {
+			message += "\n**接下來：**\n"
 		}
-		message += fmt.Sprintf("%d. %s\n", i+1, song.Title)
+	} else {
+		message = fmt.Sprintf("📜 **播放佇列 (%d 首歌曲)**\n\n", totalSongs)
+	}
+
+	// 顯示接下來的歌曲
+	if len(songs) > 0 {
+		maxDisplay := 10
+		if len(songs) <= maxDisplay {
+			for i, song := range songs {
+				message += fmt.Sprintf("%d. %s\n", i+1, song.Title)
+			}
+		} else {
+			for i := 0; i < maxDisplay; i++ {
+				message += fmt.Sprintf("%d. %s\n", i+1, songs[i].Title)
+			}
+			message += fmt.Sprintf("... 還有 %d 首歌曲", len(songs)-maxDisplay)
+		}
 	}
 
 	respondToComponentInteraction(event, message)
@@ -451,21 +476,31 @@ func updateModalResponseWithButton(event *events.ModalSubmitInteractionCreate, c
 	}
 }
 
-// respondToModalInteraction 回應 Modal 互動
+// respondToModalInteraction 回應 Modal 互動（使用 Embed）
 func respondToModalInteraction(event *events.ModalSubmitInteractionCreate, content string) {
+	embed := discord.NewEmbedBuilder().
+		SetColor(0x5865F2).
+		SetDescription(content).
+		Build()
+
 	if err := event.CreateMessage(discord.MessageCreate{
-		Content: content,
-		Flags:   discord.MessageFlagEphemeral,
+		Embeds: []discord.Embed{embed},
+		Flags:  discord.MessageFlagEphemeral,
 	}); err != nil {
 		log.Printf("failed to respond to modal: %v", err)
 	}
 }
 
-// respondToComponentInteraction 回應組件互動
+// respondToComponentInteraction 回應組件互動（使用 Embed）
 func respondToComponentInteraction(event *events.ComponentInteractionCreate, content string) {
+	embed := discord.NewEmbedBuilder().
+		SetColor(0x5865F2).
+		SetDescription(content).
+		Build()
+
 	if err := event.CreateMessage(discord.MessageCreate{
-		Content: content,
-		Flags:   discord.MessageFlagEphemeral, // 僅發送者可見
+		Embeds: []discord.Embed{embed},
+		Flags:  discord.MessageFlagEphemeral, // 僅發送者可見
 	}); err != nil {
 		log.Printf("failed to respond to component interaction: %v", err)
 	}
