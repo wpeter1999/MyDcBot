@@ -37,6 +37,7 @@ type GuildPlayer struct {
 	stopped     bool
 	stopOnce    sync.Once
 	loopMode    LoopMode // 循環播放模式
+	shuffled    bool     // 是否已打亂佇列
 }
 
 // NewGuildPlayer 建立指定 Guild 的播放器，並初始化佇列、skip signal 與 done channel。
@@ -171,6 +172,7 @@ func (p *GuildPlayer) Stop() {
 		p.paused = false
 		p.currentSong = nil
 		p.loopMode = LoopOff // 重置循環模式
+		p.shuffled = false   // 重置打亂狀態
 		p.mu.Unlock()
 
 		p.queue.Clear()
@@ -281,4 +283,26 @@ func (p *GuildPlayer) ToggleLoopMode() LoopMode {
 	}
 
 	return p.loopMode
+}
+
+// Shuffle 打亂佇列順序
+func (p *GuildPlayer) Shuffle() {
+	p.queue.Shuffle()
+	p.mu.Lock()
+	p.shuffled = true
+	p.mu.Unlock()
+}
+
+// IsShuffled 檢查是否已打亂
+func (p *GuildPlayer) IsShuffled() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.shuffled
+}
+
+// SetShuffled 設定打亂狀態
+func (p *GuildPlayer) SetShuffled(shuffled bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.shuffled = shuffled
 }

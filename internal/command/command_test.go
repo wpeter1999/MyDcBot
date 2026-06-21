@@ -104,6 +104,18 @@ func (m *mockPlayerController) ToggleLoopMode() player.LoopMode {
 	return m.loopMode
 }
 
+func (m *mockPlayerController) Shuffle() {
+	// Mock shuffle
+}
+
+func (m *mockPlayerController) IsShuffled() bool {
+	return false
+}
+
+func (m *mockPlayerController) SetShuffled(shuffled bool) {
+	// Mock set shuffled
+}
+
 func (m *mockPlayerController) GuildID() string {
 	return m.guildID
 }

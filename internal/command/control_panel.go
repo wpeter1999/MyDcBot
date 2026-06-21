@@ -22,6 +22,7 @@ const (
 	ButtonNowPlaying = "music_nowplaying"
 	ButtonSearch     = "music_search"
 	ButtonLoop       = "music_loop"
+	ButtonShuffle    = "music_shuffle"
 )
 
 // RespondWithControlButton 回應訊息並附加"顯示控制面板"按鈕（使用 Embed）
@@ -122,7 +123,11 @@ func UpdateMessageWithFullPanel(event *events.ComponentInteractionCreate, conten
 				Style:    discord.ButtonStyle(player.GetLoopMode().ButtonStyle()),
 				CustomID: ButtonLoop,
 				Emoji:    &discord.ComponentEmoji{Name: player.GetLoopMode().Icon()},
-				Label:    "循環",
+			},
+			discord.ButtonComponent{
+				Style:    getShuffleButtonStyle(player),
+				CustomID: ButtonShuffle,
+				Emoji:    &discord.ComponentEmoji{Name: "🔀"},
 			},
 		},
 		// 第二行：資訊查詢
@@ -195,6 +200,9 @@ func HandleControlPanelInteraction(event *events.ComponentInteractionCreate) {
 
 	case ButtonLoop:
 		handleLoopButton(event, player)
+
+	case ButtonShuffle:
+		handleShuffleButton(event, player)
 
 	default:
 		respondToComponentInteraction(event, "未知的按鈕操作。")
@@ -317,6 +325,31 @@ func handleLoopButton(event *events.ComponentInteractionCreate, player PlayerCon
 	message := fmt.Sprintf("%s **循環模式：%s**", icon, modeName)
 
 	respondToComponentInteraction(event, message)
+}
+
+// 處理隨機按鈕
+func handleShuffleButton(event *events.ComponentInteractionCreate, player PlayerController) {
+	// 檢查佇列是否為空
+	queueLen := player.QueueLen()
+	if queueLen == 0 {
+		respondToComponentInteraction(event, "⚠️ 佇列中沒有歌曲可以打亂")
+		return
+	}
+
+	// 打亂佇列
+	player.Shuffle()
+
+	// 回應訊息
+	message := fmt.Sprintf("🔀 **已打亂佇列**\n共 %d 首歌曲已隨機排序", queueLen)
+	respondToComponentInteraction(event, message)
+}
+
+// getShuffleButtonStyle 取得 shuffle 按鈕樣式
+func getShuffleButtonStyle(player PlayerController) discord.ButtonStyle {
+	if player.IsShuffled() {
+		return discord.ButtonStyleSuccess // 綠色
+	}
+	return discord.ButtonStyleSecondary // 灰色
 }
 
 // HandleModalSubmit 處理 Modal 提交事件
@@ -488,3 +521,5 @@ func respondToComponentInteraction(event *events.ComponentInteractionCreate, con
 		log.Printf("failed to respond to component interaction: %v", err)
 	}
 }
+
+// 處理隨機按鈕

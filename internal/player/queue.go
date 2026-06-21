@@ -1,6 +1,9 @@
 package player
 
-import "sync"
+import (
+	"math/rand"
+	"sync"
+)
 
 // Queue 以 FIFO 順序儲存歌曲，並提供安全的快照功能供唯讀指令使用。
 type Queue struct {
@@ -86,4 +89,16 @@ func (q *Queue) EnqueueFront(song Song) error {
 	// 在最前面插入歌曲
 	q.songs = append([]Song{song}, q.songs...)
 	return nil
+}
+
+// Shuffle 打亂佇列中的歌曲順序
+func (q *Queue) Shuffle() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	// 使用 Fisher-Yates shuffle 算法
+	for i := len(q.songs) - 1; i > 0; i-- {
+		j := rand.Intn(i + 1)
+		q.songs[i], q.songs[j] = q.songs[j], q.songs[i]
+	}
 }

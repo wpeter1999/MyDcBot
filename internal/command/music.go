@@ -62,6 +62,15 @@ type PlayerController interface {
 	// ToggleLoopMode 切換循環播放模式，回傳新的模式。
 	ToggleLoopMode() player.LoopMode
 
+	// Shuffle 打亂佇列順序
+	Shuffle()
+
+	// IsShuffled 檢查是否已打亂
+	IsShuffled() bool
+
+	// SetShuffled 設定打亂狀態
+	SetShuffled(shuffled bool)
+
 	// StartPlayback 啟動播放迴圈（來自 player.PlaybackController）。
 	StartPlayback(ctx context.Context, vc player.VoiceConnection, pipeline player.AudioPipeline) error
 }
