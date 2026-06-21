@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 
-	"discordbot/internal/player"
-
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
 )
@@ -37,9 +35,8 @@ func loopCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	// 建構回應訊息
 	icon := newMode.Icon()
 	modeName := newMode.String()
-	description := getLoopModeDescription(newMode)
 
-	message := fmt.Sprintf("%s **循環模式：%s**\n%s", icon, modeName, description)
+	message := fmt.Sprintf("%s **循環模式：%s**", icon, modeName)
 
 	// 回應使用者
 	if err := event.CreateMessage(discord.MessageCreate{
@@ -49,16 +46,3 @@ func loopCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 	}
 }
 
-// getLoopModeDescription 取得循環模式的說明文字
-func getLoopModeDescription(mode player.LoopMode) string {
-	switch mode {
-	case player.LoopOff:
-		return "正常播放，不循環"
-	case player.LoopSingleOnce:
-		return "當前歌曲播放完後再重複一次"
-	case player.LoopSingleInfinite:
-		return "當前歌曲無限循環播放"
-	default:
-		return ""
-	}
-}

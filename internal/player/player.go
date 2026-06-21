@@ -81,6 +81,18 @@ func (p *GuildPlayer) Dequeue() (Song, bool) {
 	return p.queue.Dequeue()
 }
 
+// EnqueueFront 將歌曲加入佇列最前面（用於循環播放）。
+func (p *GuildPlayer) EnqueueFront(song Song) error {
+	p.mu.RLock()
+	stopped := p.stopped
+	p.mu.RUnlock()
+	if stopped {
+		return ErrPlayerStopped
+	}
+
+	return p.queue.EnqueueFront(song)
+}
+
 // SetCurrentSong 設定目前播放的歌曲（線程安全）。
 func (p *GuildPlayer) SetCurrentSong(song Song) {
 	p.mu.Lock()

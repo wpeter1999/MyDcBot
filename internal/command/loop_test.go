@@ -23,27 +23,6 @@ func TestLoopCommand_Definition(t *testing.T) {
 	}
 }
 
-// TestGetLoopModeDescription 測試循環模式描述
-func TestGetLoopModeDescription(t *testing.T) {
-	tests := []struct {
-		mode     player.LoopMode
-		expected string
-	}{
-		{player.LoopOff, "正常播放，不循環"},
-		{player.LoopSingleOnce, "當前歌曲播放完後再重複一次"},
-		{player.LoopSingleInfinite, "當前歌曲無限循環播放"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.mode.String(), func(t *testing.T) {
-			got := getLoopModeDescription(tt.mode)
-			if got != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, got)
-			}
-		})
-	}
-}
-
 // TestLoopCommandHandler_Integration 測試 loop 指令處理器（整合測試）
 func TestLoopCommandHandler_Integration(t *testing.T) {
 	// 設定測試環境

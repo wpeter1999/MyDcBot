@@ -133,10 +133,10 @@ func (b *Bot) handleLoopMode(player disgolink.Player) {
 
 	switch loopMode {
 	case playerPkg.LoopSingleOnce:
-		// 單曲循環一次：將當前歌曲重新加入佇列，然後關閉循環
-		log.Printf("[Loop] Single loop once: re-queuing %s and disabling loop", currentSong.Title)
-		if err := guildPlayer.Enqueue(currentSong); err != nil {
-			log.Printf("[Loop] Failed to enqueue for single loop once: %v", err)
+		// 單曲循環一次：將當前歌曲插入到佇列最前面，然後關閉循環
+		log.Printf("[Loop] Single loop once: inserting %s to front of queue and disabling loop", currentSong.Title)
+		if err := guildPlayer.EnqueueFront(currentSong); err != nil {
+			log.Printf("[Loop] Failed to enqueue front for single loop once: %v", err)
 		} else {
 			// 循環一次後自動關閉
 			guildPlayer.SetLoopMode(playerPkg.LoopOff)
@@ -144,10 +144,10 @@ func (b *Bot) handleLoopMode(player disgolink.Player) {
 		}
 
 	case playerPkg.LoopSingleInfinite:
-		// 單曲無限循環：將當前歌曲重新加入佇列
-		log.Printf("[Loop] Single infinite loop: re-queuing %s", currentSong.Title)
-		if err := guildPlayer.Enqueue(currentSong); err != nil {
-			log.Printf("[Loop] Failed to enqueue for single infinite loop: %v", err)
+		// 單曲無限循環：將當前歌曲插入到佇列最前面
+		log.Printf("[Loop] Single infinite loop: inserting %s to front of queue", currentSong.Title)
+		if err := guildPlayer.EnqueueFront(currentSong); err != nil {
+			log.Printf("[Loop] Failed to enqueue front for single infinite loop: %v", err)
 		}
 
 	case playerPkg.LoopOff:

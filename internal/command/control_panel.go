@@ -313,9 +313,8 @@ func handleLoopButton(event *events.ComponentInteractionCreate, player PlayerCon
 	// 建構回應訊息
 	icon := newMode.Icon()
 	modeName := newMode.String()
-	description := getLoopModeDescription(newMode)
 
-	message := fmt.Sprintf("%s **循環模式：%s**\n%s", icon, modeName, description)
+	message := fmt.Sprintf("%s **循環模式：%s**", icon, modeName)
 
 	respondToComponentInteraction(event, message)
 }
