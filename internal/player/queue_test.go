@@ -83,3 +83,111 @@ func TestQueue_SnapshotReturnsCopy(t *testing.T) {
 		t.Fatalf("Snapshot 應回傳 copy，實際 queue 被改成 %q", freshSnapshot[0].Title)
 	}
 }
+
+// TestQueue_Shuffle 測試打亂佇列
+func TestQueue_Shuffle(t *testing.T) {
+	q := NewQueue(10)
+
+	// 加入多首歌曲
+	songs := []Song{
+		{Title: "Song A"},
+		{Title: "Song B"},
+		{Title: "Song C"},
+		{Title: "Song D"},
+		{Title: "Song E"},
+	}
+
+	for _, song := range songs {
+		if err := q.Enqueue(song); err != nil {
+			t.Fatalf("Enqueue failed: %v", err)
+		}
+	}
+
+	// 打亂佇列
+	q.Shuffle()
+
+	// 檢查佇列長度不變
+	if q.Len() != 5 {
+		t.Errorf("expected queue length 5, got %d", q.Len())
+	}
+
+	// 檢查所有歌曲都還在（雖然順序改變）
+	snapshot := q.Snapshot()
+	songMap := make(map[string]bool)
+	for _, s := range snapshot {
+		songMap[s.Title] = true
+	}
+
+	for _, expected := range songs {
+		if !songMap[expected.Title] {
+			t.Errorf("song %s not found after shuffle", expected.Title)
+		}
+	}
+}
+
+// TestQueue_ShuffleEmpty 測試打亂空佇列
+func TestQueue_ShuffleEmpty(t *testing.T) {
+	q := NewQueue(10)
+
+	// 打亂空佇列不應該 panic
+	q.Shuffle()
+
+	if q.Len() != 0 {
+		t.Errorf("expected empty queue, got length %d", q.Len())
+	}
+}
+
+// TestQueue_ShuffleSingleSong 測試打亂只有一首歌的佇列
+func TestQueue_ShuffleSingleSong(t *testing.T) {
+	q := NewQueue(10)
+
+	song := Song{Title: "Only Song"}
+	if err := q.Enqueue(song); err != nil {
+		t.Fatalf("Enqueue failed: %v", err)
+	}
+
+	// 打亂
+	q.Shuffle()
+
+	// 檢查歌曲還在
+	if q.Len() != 1 {
+		t.Errorf("expected queue length 1, got %d", q.Len())
+	}
+
+	snapshot := q.Snapshot()
+	if snapshot[0].Title != "Only Song" {
+		t.Errorf("expected 'Only Song', got %s", snapshot[0].Title)
+	}
+}
+
+// TestQueue_ShuffleConcurrent 測試並行打亂的安全性
+func TestQueue_ShuffleConcurrent(t *testing.T) {
+	q := NewQueue(100)
+
+	// 加入歌曲
+	for i := 0; i < 50; i++ {
+		q.Enqueue(Song{Title: "Song"})
+	}
+
+	done := make(chan bool)
+
+	// 啟動多個 goroutine 同時打亂
+	for i := 0; i < 10; i++ {
+		go func() {
+			q.Shuffle()
+			q.Len()
+			q.Snapshot()
+			done <- true
+		}()
+	}
+
+	// 等待所有 goroutine 完成
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// 只要沒有 panic 就算通過
+	if q.Len() != 50 {
+		t.Errorf("expected queue length 50 after concurrent shuffles, got %d", q.Len())
+	}
+}

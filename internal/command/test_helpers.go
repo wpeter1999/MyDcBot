@@ -108,6 +108,18 @@ func (m *MockPlayerControllerExt) ToggleLoopMode() player.LoopMode {
 	return m.loopMode
 }
 
+func (m *MockPlayerControllerExt) Shuffle() {
+	// Mock implementation
+}
+
+func (m *MockPlayerControllerExt) IsShuffled() bool {
+	return false
+}
+
+func (m *MockPlayerControllerExt) SetShuffled(shuffled bool) {
+	// Mock implementation
+}
+
 func (m *MockPlayerControllerExt) StartPlayback(ctx context.Context, vc player.VoiceConnection, pipeline player.AudioPipeline) error {
 	// Mock implementation - returns nil for testing
 	return nil
