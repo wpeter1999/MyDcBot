@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"discordbot/internal/command"
+	playerPkg "discordbot/internal/player"
 
 	"github.com/disgoorg/disgolink/v3/disgolink"
 	"github.com/disgoorg/disgolink/v3/lavalink"
@@ -52,6 +53,9 @@ func (b *Bot) onTrackEnd(player disgolink.Player, event lavalink.TrackEndEvent) 
 	if event.Reason == lavalink.TrackEndReasonLoadFailed {
 		log.Printf("[Lavalink] Track failed to load, skipping to next song...")
 	}
+
+	// 處理循環播放
+	b.handleLoopMode(player)
 
 	b.playNextSongInQueue(player)
 }
@@ -102,6 +106,53 @@ func (b *Bot) playNextSongAsync(player disgolink.Player) {
 		log.Printf("[Lavalink] Failed to play any song from queue: %v", err)
 	} else if playedSong != nil {
 		log.Printf("[Lavalink] Auto-playing: %s", playedSong.Title)
+	}
+}
+
+// handleLoopMode 處理循環播放邏輯
+func (b *Bot) handleLoopMode(player disgolink.Player) {
+	guildIDStr := player.GuildID().String()
+
+	if b.playerManager == nil {
+		return
+	}
+
+	guildPlayer, ok := b.playerManager.Get(guildIDStr)
+	if !ok || guildPlayer == nil {
+		return
+	}
+
+	// 取得當前播放的歌曲
+	currentSong, hasSong := guildPlayer.CurrentSong()
+	if !hasSong {
+		return
+	}
+
+	// 取得循環模式
+	loopMode := guildPlayer.GetLoopMode()
+
+	switch loopMode {
+	case playerPkg.LoopSingleOnce:
+		// 單曲循環一次：將當前歌曲插入到佇列最前面，然後關閉循環
+		log.Printf("[Loop] Single loop once: inserting %s to front of queue and disabling loop", currentSong.Title)
+		if err := guildPlayer.EnqueueFront(currentSong); err != nil {
+			log.Printf("[Loop] Failed to enqueue front for single loop once: %v", err)
+		} else {
+			// 循環一次後自動關閉
+			guildPlayer.SetLoopMode(playerPkg.LoopOff)
+			log.Printf("[Loop] Loop mode automatically disabled after single repeat")
+		}
+
+	case playerPkg.LoopSingleInfinite:
+		// 單曲無限循環：將當前歌曲插入到佇列最前面
+		log.Printf("[Loop] Single infinite loop: inserting %s to front of queue", currentSong.Title)
+		if err := guildPlayer.EnqueueFront(currentSong); err != nil {
+			log.Printf("[Loop] Failed to enqueue front for single infinite loop: %v", err)
+		}
+
+	case playerPkg.LoopOff:
+		// 不循環，什麼都不做
+		log.Printf("[Loop] Loop off: normal playback")
 	}
 }
 

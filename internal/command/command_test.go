@@ -15,6 +15,7 @@ type mockPlayerController struct {
 	currentSong *player.Song
 	paused      bool
 	stopped     bool
+	loopMode    player.LoopMode
 }
 
 func newMockPlayerController(guildID string) *mockPlayerController {
@@ -73,14 +74,34 @@ func (m *mockPlayerController) IsPaused() bool {
 	return m.paused
 }
 
-func (m *mockPlayerController) Skip() bool {
-	return !m.stopped
+func (m *mockPlayerController) Skip() {
+	// Mock implementation
 }
 
 func (m *mockPlayerController) Stop() {
 	m.stopped = true
 	m.queue = nil
 	m.currentSong = nil
+}
+
+func (m *mockPlayerController) GetLoopMode() player.LoopMode {
+	return m.loopMode
+}
+
+func (m *mockPlayerController) SetLoopMode(mode player.LoopMode) {
+	m.loopMode = mode
+}
+
+func (m *mockPlayerController) ToggleLoopMode() player.LoopMode {
+	switch m.loopMode {
+	case player.LoopOff:
+		m.loopMode = player.LoopSingleOnce
+	case player.LoopSingleOnce:
+		m.loopMode = player.LoopSingleInfinite
+	case player.LoopSingleInfinite:
+		m.loopMode = player.LoopOff
+	}
+	return m.loopMode
 }
 
 func (m *mockPlayerController) GuildID() string {

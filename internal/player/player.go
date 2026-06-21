@@ -36,6 +36,7 @@ type GuildPlayer struct {
 	paused      bool
 	stopped     bool
 	stopOnce    sync.Once
+	loopMode    LoopMode // 循環播放模式
 }
 
 // NewGuildPlayer 建立指定 Guild 的播放器，並初始化佇列、skip signal 與 done channel。
@@ -48,12 +49,12 @@ func NewGuildPlayer(guildID string, queueCapacity int) *GuildPlayer {
 	}
 }
 
-// GuildID 回傳此播放器所屬的 Discord Guild ID。
+// GuildID 回傳播放器所屬的 Guild ID。
 func (p *GuildPlayer) GuildID() string {
 	return p.guildID
 }
 
-// Enqueue 將歌曲加入此 Guild 的播放佇列；播放器停止後會回傳 ErrPlayerStopped。
+// Enqueue 將歌曲加入佇列尾端，若播放器已停止則回傳 ErrPlayerStopped。
 func (p *GuildPlayer) Enqueue(song Song) error {
 	p.mu.RLock()
 	stopped := p.stopped
@@ -65,7 +66,7 @@ func (p *GuildPlayer) Enqueue(song Song) error {
 	return p.queue.Enqueue(song)
 }
 
-// QueueSnapshot 回傳目前佇列歌曲的複本，不會消費佇列內容。
+// QueueSnapshot 回傳佇列的快照（深拷貝），可用於顯示。
 func (p *GuildPlayer) QueueSnapshot() []Song {
 	return p.queue.Snapshot()
 }
@@ -75,21 +76,32 @@ func (p *GuildPlayer) QueueLen() int {
 	return p.queue.Len()
 }
 
-// Dequeue 從佇列取出下一首歌曲
+// Dequeue 從佇列取出下一首歌曲。
 func (p *GuildPlayer) Dequeue() (Song, bool) {
 	return p.queue.Dequeue()
 }
 
-// SetCurrentSong 記錄目前正在播放的歌曲。
+// EnqueueFront 將歌曲加入佇列最前面（用於循環播放）。
+func (p *GuildPlayer) EnqueueFront(song Song) error {
+	p.mu.RLock()
+	stopped := p.stopped
+	p.mu.RUnlock()
+	if stopped {
+		return ErrPlayerStopped
+	}
+
+	return p.queue.EnqueueFront(song)
+}
+
+// SetCurrentSong 設定目前播放的歌曲（線程安全）。
 func (p *GuildPlayer) SetCurrentSong(song Song) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	current := song
-	p.currentSong = &current
+	p.currentSong = &song
 }
 
-// CurrentSong 回傳目前播放歌曲的複本；沒有歌曲時 ok 會是 false。
+// CurrentSong 回傳目前播放的歌曲（若有）。
 func (p *GuildPlayer) CurrentSong() (Song, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -100,7 +112,7 @@ func (p *GuildPlayer) CurrentSong() (Song, bool) {
 	return *p.currentSong, true
 }
 
-// ClearCurrentSong 清除目前播放歌曲的狀態。
+// ClearCurrentSong 清除目前播放的歌曲。
 func (p *GuildPlayer) ClearCurrentSong() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -108,7 +120,7 @@ func (p *GuildPlayer) ClearCurrentSong() {
 	p.currentSong = nil
 }
 
-// TogglePause 切換暫停狀態，並回傳切換後的新狀態。
+// TogglePause 切換暫停狀態，回傳新的暫停狀態。
 func (p *GuildPlayer) TogglePause() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -117,7 +129,7 @@ func (p *GuildPlayer) TogglePause() bool {
 	return p.paused
 }
 
-// IsPaused 回傳播放器目前是否處於暫停狀態。
+// IsPaused 回傳播放器是否暫停。
 func (p *GuildPlayer) IsPaused() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -125,17 +137,21 @@ func (p *GuildPlayer) IsPaused() bool {
 	return p.paused
 }
 
-// Skip 以非阻塞方式送出跳過訊號；若已有 pending 訊號或播放器已停止則回傳 false。
-func (p *GuildPlayer) Skip() bool {
-	p.mu.RLock()
-	stopped := p.stopped
-	p.mu.RUnlock()
-	if stopped {
-		return false
-	}
-
+// Skip 發送跳過訊號給播放迴圈。若 skip channel 已滿，則跳過（即不阻塞）。
+func (p *GuildPlayer) Skip() {
 	select {
 	case p.skip <- struct{}{}:
+		// 成功送出 skip 訊號
+	default:
+		// skip channel 已滿，表示已有跳過訊號在等待
+	}
+}
+
+// HasPendingSkip 回傳是否有待處理的 skip 訊號。
+func (p *GuildPlayer) HasPendingSkip() bool {
+	select {
+	case <-p.skip:
+		// 消耗掉 skip 訊號
 		return true
 	default:
 		return false
@@ -154,6 +170,7 @@ func (p *GuildPlayer) Stop() {
 		p.stopped = true
 		p.paused = false
 		p.currentSong = nil
+		p.loopMode = LoopOff // 重置循環模式
 		p.mu.Unlock()
 
 		p.queue.Clear()
@@ -187,7 +204,7 @@ func (p *GuildPlayer) StartPlayback(ctx context.Context, vc VoiceConnection, pip
 		default:
 		}
 
-		// 從佇列取出下一首歌
+		// 從佇列取出下一首歌曲
 		song, ok := p.queue.Dequeue()
 		if !ok {
 			// 佇列為空，等待新歌曲或停止訊號
@@ -234,3 +251,34 @@ func (p *GuildPlayer) StartPlayback(ctx context.Context, vc VoiceConnection, pip
 	}
 }
 
+// GetLoopMode 取得目前的循環播放模式
+func (p *GuildPlayer) GetLoopMode() LoopMode {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.loopMode
+}
+
+// SetLoopMode 設定循環播放模式
+func (p *GuildPlayer) SetLoopMode(mode LoopMode) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.loopMode = mode
+}
+
+// ToggleLoopMode 切換循環播放模式（關閉 -> 單曲循環一次 -> 單曲無限循環 -> 關閉）
+// 回傳切換後的模式
+func (p *GuildPlayer) ToggleLoopMode() LoopMode {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	switch p.loopMode {
+	case LoopOff:
+		p.loopMode = LoopSingleOnce
+	case LoopSingleOnce:
+		p.loopMode = LoopSingleInfinite
+	case LoopSingleInfinite:
+		p.loopMode = LoopOff
+	}
+
+	return p.loopMode
+}

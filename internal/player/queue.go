@@ -73,3 +73,17 @@ func (q *Queue) Clear() {
 
 	q.songs = q.songs[:0]
 }
+
+// EnqueueFront 將歌曲加入佇列最前面（用於循環播放）。
+func (q *Queue) EnqueueFront(song Song) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if len(q.songs) >= q.capacity {
+		return ErrQueueFull
+	}
+
+	// 在最前面插入歌曲
+	q.songs = append([]Song{song}, q.songs...)
+	return nil
+}

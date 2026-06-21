@@ -21,7 +21,7 @@ type PlayerController interface {
 	Enqueue(song player.Song) error
 
 	// Skip 跳過目前播放的歌曲。
-	Skip() bool
+	Skip()
 
 	// TogglePause 切換暫停/繼續狀態，回傳新的暫停狀態。
 	TogglePause() bool
@@ -52,6 +52,15 @@ type PlayerController interface {
 
 	// GuildID 回傳此播放器所屬的 Guild ID。
 	GuildID() string
+
+	// GetLoopMode 取得目前的循環播放模式。
+	GetLoopMode() player.LoopMode
+
+	// SetLoopMode 設定循環播放模式。
+	SetLoopMode(mode player.LoopMode)
+
+	// ToggleLoopMode 切換循環播放模式，回傳新的模式。
+	ToggleLoopMode() player.LoopMode
 
 	// StartPlayback 啟動播放迴圈（來自 player.PlaybackController）。
 	StartPlayback(ctx context.Context, vc player.VoiceConnection, pipeline player.AudioPipeline) error

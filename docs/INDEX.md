@@ -61,6 +61,7 @@ graph TB
 - [Skip 指令](功能模組/播放控制功能.md#Skip指令) - 跳過歌曲
 - [Pause 指令](功能模組/播放控制功能.md#Pause指令) - 暫停/恢復
 - [Stop 指令](功能模組/播放控制功能.md#Stop指令) - 停止播放
+- [Loop 指令](功能模組/播放控制功能.md#Loop指令) - 循環播放
 - [Download 指令](功能模組/下載功能.md#Download指令) - 下載音訊
 
 ### 3. 播放器模組 (`internal/player/`)

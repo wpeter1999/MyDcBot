@@ -21,6 +21,7 @@ const (
 	ButtonQueue      = "music_queue"
 	ButtonNowPlaying = "music_nowplaying"
 	ButtonSearch     = "music_search"
+	ButtonLoop       = "music_loop"
 )
 
 // RespondWithControlButton 回應訊息並附加"顯示控制面板"按鈕（使用 Embed）
@@ -117,6 +118,12 @@ func UpdateMessageWithFullPanel(event *events.ComponentInteractionCreate, conten
 				Emoji:    &discord.ComponentEmoji{Name: "⏹️"},
 				Disabled: !hasSong,
 			},
+			discord.ButtonComponent{
+				Style:    discord.ButtonStyle(player.GetLoopMode().ButtonStyle()),
+				CustomID: ButtonLoop,
+				Emoji:    &discord.ComponentEmoji{Name: player.GetLoopMode().Icon()},
+				Label:    "循環",
+			},
 		},
 		// 第二行：資訊查詢
 		discord.ActionRowComponent{
@@ -185,6 +192,9 @@ func HandleControlPanelInteraction(event *events.ComponentInteractionCreate) {
 
 	case ButtonSearch:
 		handleSearchButton(event)
+
+	case ButtonLoop:
+		handleLoopButton(event, player)
 
 	default:
 		respondToComponentInteraction(event, "未知的按鈕操作。")
@@ -293,6 +303,20 @@ func handleSearchButton(event *events.ComponentInteractionCreate) {
 	if err := event.Modal(modal); err != nil {
 		log.Printf("failed to show modal: %v", err)
 	}
+}
+
+// 處理循環按鈕
+func handleLoopButton(event *events.ComponentInteractionCreate, player PlayerController) {
+	// 切換循環模式
+	newMode := player.ToggleLoopMode()
+
+	// 建構回應訊息
+	icon := newMode.Icon()
+	modeName := newMode.String()
+
+	message := fmt.Sprintf("%s **循環模式：%s**", icon, modeName)
+
+	respondToComponentInteraction(event, message)
 }
 
 // HandleModalSubmit 處理 Modal 提交事件

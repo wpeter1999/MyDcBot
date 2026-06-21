@@ -72,12 +72,12 @@ func TestGuildPlayer_TogglePause(t *testing.T) {
 func TestGuildPlayer_SkipIsNonBlockingSignal(t *testing.T) {
 	player := NewGuildPlayer("guild-1", 50)
 
-	if ok := player.Skip(); !ok {
+	player.Skip()
+	if !player.HasPendingSkip() {
 		t.Fatal("第一次 Skip 應成功送出 signal")
 	}
-	if ok := player.Skip(); ok {
-		t.Fatal("已有 pending skip signal 時，第二次 Skip 應回傳 false 且不可阻塞")
-	}
+	player.Skip()
+	// 第二次 Skip 不應阻塞
 
 	select {
 	case <-player.SkipChan():
