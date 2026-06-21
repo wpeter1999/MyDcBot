@@ -69,9 +69,11 @@ func (m LoopMode) ButtonStyle() int
 回傳控制面板按鈕的樣式。
 
 **回傳值**：
-- `1` (Primary/藍色) - LoopOff
-- `3` (Success/綠色) - LoopSingleOnce
+- `2` (Secondary/灰色) - LoopOff
+- `1` (Primary/藍色) - LoopSingleOnce
 - `3` (Success/綠色) - LoopSingleInfinite
+
+**視覺層次**：灰色 → 藍色 → 綠色（遞增的循環強度）
 
 ## GuildPlayer 循環方法
 
@@ -271,9 +273,11 @@ A 結束 → EnqueueFront(A) → 佇列 [A, B, C]
 
 | 模式 | 顏色 | 圖示 | 說明 |
 |------|------|------|------|
-| LoopOff | 藍色 (Primary) | 🔁 | 關閉循環 |
-| LoopSingleOnce | 綠色 (Success) | 🔂 | 單曲循環一次 |
+| LoopOff | 灰色 (Secondary) | 🔁 | 關閉循環 |
+| LoopSingleOnce | 藍色 (Primary) | 🔂 | 單曲循環一次 |
 | LoopSingleInfinite | 綠色 (Success) | 🔁 | 單曲無限循環 |
+
+**視覺層次**：灰色 → 藍色 → 綠色
 
 ## 測試
 
