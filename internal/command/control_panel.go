@@ -119,7 +119,7 @@ func UpdateMessageWithFullPanel(event *events.ComponentInteractionCreate, conten
 				Disabled: !hasSong,
 			},
 			discord.ButtonComponent{
-				Style:    discord.ButtonStylePrimary,
+				Style:    discord.ButtonStyle(player.GetLoopMode().ButtonStyle()),
 				CustomID: ButtonLoop,
 				Emoji:    &discord.ComponentEmoji{Name: player.GetLoopMode().Icon()},
 				Label:    "循環",

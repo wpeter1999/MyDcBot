@@ -53,11 +53,11 @@ func loopCommandHandler(event *events.ApplicationCommandInteractionCreate) {
 func getLoopModeDescription(mode player.LoopMode) string {
 	switch mode {
 	case player.LoopOff:
-		return "佇列播放完畢後停止"
-	case player.LoopSingle:
-		return "重複播放當前歌曲"
-	case player.LoopQueue:
-		return "播放完佇列後從頭開始"
+		return "正常播放，不循環"
+	case player.LoopSingleOnce:
+		return "當前歌曲播放完後再重複一次"
+	case player.LoopSingleInfinite:
+		return "當前歌曲無限循環播放"
 	default:
 		return ""
 	}

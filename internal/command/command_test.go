@@ -95,10 +95,10 @@ func (m *mockPlayerController) SetLoopMode(mode player.LoopMode) {
 func (m *mockPlayerController) ToggleLoopMode() player.LoopMode {
 	switch m.loopMode {
 	case player.LoopOff:
-		m.loopMode = player.LoopSingle
-	case player.LoopSingle:
-		m.loopMode = player.LoopQueue
-	case player.LoopQueue:
+		m.loopMode = player.LoopSingleOnce
+	case player.LoopSingleOnce:
+		m.loopMode = player.LoopSingleInfinite
+	case player.LoopSingleInfinite:
 		m.loopMode = player.LoopOff
 	}
 	return m.loopMode

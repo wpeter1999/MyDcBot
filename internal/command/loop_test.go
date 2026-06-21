@@ -29,9 +29,9 @@ func TestGetLoopModeDescription(t *testing.T) {
 		mode     player.LoopMode
 		expected string
 	}{
-		{player.LoopOff, "佇列播放完畢後停止"},
-		{player.LoopSingle, "重複播放當前歌曲"},
-		{player.LoopQueue, "播放完佇列後從頭開始"},
+		{player.LoopOff, "正常播放，不循環"},
+		{player.LoopSingleOnce, "當前歌曲播放完後再重複一次"},
+		{player.LoopSingleInfinite, "當前歌曲無限循環播放"},
 	}
 
 	for _, tt := range tests {
@@ -61,8 +61,8 @@ func TestLoopCommandHandler_Integration(t *testing.T) {
 		name         string
 		expectedMode player.LoopMode
 	}{
-		{"第一次切換應為單曲循環", player.LoopSingle},
-		{"第二次切換應為佇列循環", player.LoopQueue},
+		{"第一次切換應為單曲循環一次", player.LoopSingleOnce},
+		{"第二次切換應為單曲無限循環", player.LoopSingleInfinite},
 		{"第三次切換應為關閉", player.LoopOff},
 	}
 

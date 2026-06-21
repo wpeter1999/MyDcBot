@@ -253,7 +253,7 @@ func (p *GuildPlayer) SetLoopMode(mode LoopMode) {
 	p.loopMode = mode
 }
 
-// ToggleLoopMode 切換循環播放模式（關閉 -> 單曲 -> 佇列 -> 關閉）
+// ToggleLoopMode 切換循環播放模式（關閉 -> 單曲循環一次 -> 單曲無限循環 -> 關閉）
 // 回傳切換後的模式
 func (p *GuildPlayer) ToggleLoopMode() LoopMode {
 	p.mu.Lock()
@@ -261,10 +261,10 @@ func (p *GuildPlayer) ToggleLoopMode() LoopMode {
 
 	switch p.loopMode {
 	case LoopOff:
-		p.loopMode = LoopSingle
-	case LoopSingle:
-		p.loopMode = LoopQueue
-	case LoopQueue:
+		p.loopMode = LoopSingleOnce
+	case LoopSingleOnce:
+		p.loopMode = LoopSingleInfinite
+	case LoopSingleInfinite:
 		p.loopMode = LoopOff
 	}
 

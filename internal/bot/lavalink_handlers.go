@@ -132,18 +132,22 @@ func (b *Bot) handleLoopMode(player disgolink.Player) {
 	loopMode := guildPlayer.GetLoopMode()
 
 	switch loopMode {
-	case playerPkg.LoopSingle:
-		// 單曲循環：將當前歌曲重新加入佇列（在最前面）
-		log.Printf("[Loop] Single loop: re-queuing %s", currentSong.Title)
+	case playerPkg.LoopSingleOnce:
+		// 單曲循環一次：將當前歌曲重新加入佇列，然後關閉循環
+		log.Printf("[Loop] Single loop once: re-queuing %s and disabling loop", currentSong.Title)
 		if err := guildPlayer.Enqueue(currentSong); err != nil {
-			log.Printf("[Loop] Failed to enqueue for single loop: %v", err)
+			log.Printf("[Loop] Failed to enqueue for single loop once: %v", err)
+		} else {
+			// 循環一次後自動關閉
+			guildPlayer.SetLoopMode(playerPkg.LoopOff)
+			log.Printf("[Loop] Loop mode automatically disabled after single repeat")
 		}
 
-	case playerPkg.LoopQueue:
-		// 佇列循環：將當前歌曲加入佇列末端
-		log.Printf("[Loop] Queue loop: adding %s to end of queue", currentSong.Title)
+	case playerPkg.LoopSingleInfinite:
+		// 單曲無限循環：將當前歌曲重新加入佇列
+		log.Printf("[Loop] Single infinite loop: re-queuing %s", currentSong.Title)
 		if err := guildPlayer.Enqueue(currentSong); err != nil {
-			log.Printf("[Loop] Failed to enqueue for queue loop: %v", err)
+			log.Printf("[Loop] Failed to enqueue for single infinite loop: %v", err)
 		}
 
 	case playerPkg.LoopOff:

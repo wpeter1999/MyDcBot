@@ -22,8 +22,8 @@ func TestLoopMode_SetAndGet(t *testing.T) {
 		name     string
 		loopMode LoopMode
 	}{
-		{"設定單曲循環", LoopSingle},
-		{"設定佇列循環", LoopQueue},
+		{"設定單曲循環一次", LoopSingleOnce},
+		{"設定單曲無限循環", LoopSingleInfinite},
 		{"關閉循環", LoopOff},
 	}
 
@@ -39,49 +39,49 @@ func TestLoopMode_SetAndGet(t *testing.T) {
 	}
 }
 
-// TestLoopMode_ToggleOff 測試從關閉切換到單曲循環
+// TestLoopMode_ToggleOff 測試從關閉切換到單曲循環一次
 func TestLoopMode_ToggleOff(t *testing.T) {
 	player := NewGuildPlayer("test-guild", 50)
 
-	// 從 LoopOff 切換應該變成 LoopSingle
+	// 從 LoopOff 切換應該變成 LoopSingleOnce
 	newMode := player.ToggleLoopMode()
 
-	if newMode != LoopSingle {
-		t.Errorf("expected LoopSingle after toggle from LoopOff, got %v", newMode)
+	if newMode != LoopSingleOnce {
+		t.Errorf("expected LoopSingleOnce after toggle from LoopOff, got %v", newMode)
 	}
 
-	if player.GetLoopMode() != LoopSingle {
-		t.Errorf("expected player loop mode to be LoopSingle, got %v", player.GetLoopMode())
+	if player.GetLoopMode() != LoopSingleOnce {
+		t.Errorf("expected player loop mode to be LoopSingleOnce, got %v", player.GetLoopMode())
 	}
 }
 
-// TestLoopMode_ToggleSingle 測試從單曲循環切換到佇列循環
-func TestLoopMode_ToggleSingle(t *testing.T) {
+// TestLoopMode_ToggleSingleOnce 測試從單曲循環一次切換到單曲無限循環
+func TestLoopMode_ToggleSingleOnce(t *testing.T) {
 	player := NewGuildPlayer("test-guild", 50)
-	player.SetLoopMode(LoopSingle)
+	player.SetLoopMode(LoopSingleOnce)
 
-	// 從 LoopSingle 切換應該變成 LoopQueue
+	// 從 LoopSingleOnce 切換應該變成 LoopSingleInfinite
 	newMode := player.ToggleLoopMode()
 
-	if newMode != LoopQueue {
-		t.Errorf("expected LoopQueue after toggle from LoopSingle, got %v", newMode)
+	if newMode != LoopSingleInfinite {
+		t.Errorf("expected LoopSingleInfinite after toggle from LoopSingleOnce, got %v", newMode)
 	}
 
-	if player.GetLoopMode() != LoopQueue {
-		t.Errorf("expected player loop mode to be LoopQueue, got %v", player.GetLoopMode())
+	if player.GetLoopMode() != LoopSingleInfinite {
+		t.Errorf("expected player loop mode to be LoopSingleInfinite, got %v", player.GetLoopMode())
 	}
 }
 
-// TestLoopMode_ToggleQueue 測試從佇列循環切換回關閉
-func TestLoopMode_ToggleQueue(t *testing.T) {
+// TestLoopMode_ToggleSingleInfinite 測試從單曲無限循環切換回關閉
+func TestLoopMode_ToggleSingleInfinite(t *testing.T) {
 	player := NewGuildPlayer("test-guild", 50)
-	player.SetLoopMode(LoopQueue)
+	player.SetLoopMode(LoopSingleInfinite)
 
-	// 從 LoopQueue 切換應該變成 LoopOff
+	// 從 LoopSingleInfinite 切換應該變成 LoopOff
 	newMode := player.ToggleLoopMode()
 
 	if newMode != LoopOff {
-		t.Errorf("expected LoopOff after toggle from LoopQueue, got %v", newMode)
+		t.Errorf("expected LoopOff after toggle from LoopSingleInfinite, got %v", newMode)
 	}
 
 	if player.GetLoopMode() != LoopOff {
@@ -99,7 +99,7 @@ func TestLoopMode_ConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func() {
 			for j := 0; j < 100; j++ {
-				player.SetLoopMode(LoopSingle)
+				player.SetLoopMode(LoopSingleOnce)
 				player.GetLoopMode()
 				player.ToggleLoopMode()
 			}
@@ -122,8 +122,8 @@ func TestLoopMode_String(t *testing.T) {
 		expected string
 	}{
 		{LoopOff, "關閉"},
-		{LoopSingle, "單曲循環"},
-		{LoopQueue, "佇列循環"},
+		{LoopSingleOnce, "單曲循環一次"},
+		{LoopSingleInfinite, "單曲無限循環"},
 		{LoopMode(99), "未知"},
 	}
 
@@ -140,7 +140,7 @@ func TestLoopMode_String(t *testing.T) {
 // TestLoopMode_AfterStop 測試停止後循環模式應該重置
 func TestLoopMode_AfterStop(t *testing.T) {
 	player := NewGuildPlayer("test-guild", 50)
-	player.SetLoopMode(LoopQueue)
+	player.SetLoopMode(LoopSingleInfinite)
 
 	// 停止播放器
 	player.Stop()
@@ -158,9 +158,9 @@ func TestLoopMode_Icon(t *testing.T) {
 		mode     LoopMode
 		expected string
 	}{
-		{LoopOff, "➡️"},
-		{LoopSingle, "🔂"},
-		{LoopQueue, "🔁"},
+		{LoopOff, "🔁"},
+		{LoopSingleOnce, "🔂"},
+		{LoopSingleInfinite, "🔁"},
 	}
 
 	for _, tt := range tests {
@@ -168,6 +168,27 @@ func TestLoopMode_Icon(t *testing.T) {
 			got := tt.mode.Icon()
 			if got != tt.expected {
 				t.Errorf("expected icon %q, got %q", tt.expected, got)
+			}
+		})
+	}
+}
+
+// TestLoopMode_ButtonStyle 測試取得循環模式按鈕樣式
+func TestLoopMode_ButtonStyle(t *testing.T) {
+	tests := []struct {
+		mode     LoopMode
+		expected int
+	}{
+		{LoopOff, 1},          // Primary (藍色)
+		{LoopSingleOnce, 3},   // Success (綠色)
+		{LoopSingleInfinite, 3}, // Success (綠色)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.mode.String(), func(t *testing.T) {
+			got := tt.mode.ButtonStyle()
+			if got != tt.expected {
+				t.Errorf("expected button style %d, got %d", tt.expected, got)
 			}
 		})
 	}
