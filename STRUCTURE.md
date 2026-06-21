@@ -42,6 +42,11 @@ DiscordBot/
 │   │   ├── nowplaying.go      # /nowplaying 指令
 │   │   ├── nowplaying_test.go # 當前播放測試
 │   │   ├── download.go        # /download 指令
+│   │   ├── loop.go            # /loop 指令
+│   │   ├── loop_test.go       # 循環播放測試
+│   │   ├── shuffle.go         # /shuffle 指令
+│   │   ├── control_panel.go   # 音樂控制面板
+│   │   ├── test_helpers.go    # 測試輔助工具
 │   │   └── help.go            # /help 指令
 │   │
 │   ├── config/                 # 配置管理
@@ -53,7 +58,10 @@ DiscordBot/
 │   │   ├── player_test.go     # 播放器測試
 │   │   ├── queue.go           # 佇列管理
 │   │   ├── queue_test.go      # 佇列測試
+│   │   ├── loop.go            # 循環模式定義
+│   │   ├── loop_test.go       # 循環模式測試
 │   │   ├── song.go            # 歌曲結構
+│   │   ├── song_test.go       # 歌曲測試
 │   │   ├── manager.go         # 播放器管理器
 │   │   └── manager_test.go    # 管理器測試
 │   │
