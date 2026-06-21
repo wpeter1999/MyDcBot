@@ -44,9 +44,9 @@ func (m LoopMode) Icon() string {
 func (m LoopMode) ButtonStyle() int {
 	switch m {
 	case LoopOff:
-		return 1 // Primary (藍色)
+		return 2 // Secondary (灰色)
 	case LoopSingleOnce:
-		return 3 // Success (綠色)
+		return 1 // Primary (藍色)
 	case LoopSingleInfinite:
 		return 3 // Success (綠色)
 	default:

@@ -521,5 +521,3 @@ func respondToComponentInteraction(event *events.ComponentInteractionCreate, con
 		log.Printf("failed to respond to component interaction: %v", err)
 	}
 }
-
-// 處理隨機按鈕

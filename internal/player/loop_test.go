@@ -179,8 +179,8 @@ func TestLoopMode_ButtonStyle(t *testing.T) {
 		mode     LoopMode
 		expected int
 	}{
-		{LoopOff, 1},          // Primary (藍色)
-		{LoopSingleOnce, 3},   // Success (綠色)
+		{LoopOff, 2},            // Secondary (灰色)
+		{LoopSingleOnce, 1},     // Primary (藍色)
 		{LoopSingleInfinite, 3}, // Success (綠色)
 	}
 
