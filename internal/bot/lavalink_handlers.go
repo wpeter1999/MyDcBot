@@ -82,6 +82,13 @@ func (b *Bot) playNextSongInQueue(player disgolink.Player) {
 	// 檢查佇列是否為空
 	if guildPlayer.QueueLen() == 0 {
 		log.Printf("[Lavalink] No more songs in queue for guild %s", guildIDStr)
+
+		// 清除頻道狀態
+		voiceState, ok := b.Client.Caches().VoiceState(player.GuildID(), b.Client.ApplicationID())
+		if ok && voiceState.ChannelID != nil {
+			go command.ClearVoiceChannelStatus(b.Client, *voiceState.ChannelID)
+		}
+
 		return
 	}
 
