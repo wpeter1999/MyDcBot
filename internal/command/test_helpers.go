@@ -12,6 +12,7 @@ type MockPlayerControllerExt struct {
 	currentSongCleared bool
 	currentSong        *player.Song
 	queue              []player.Song
+	loopMode           player.LoopMode
 }
 
 func (m *MockPlayerControllerExt) QueueLen() int {
@@ -73,9 +74,8 @@ func (m *MockPlayerControllerExt) TogglePause() bool {
 	return false
 }
 
-func (m *MockPlayerControllerExt) Skip() bool {
-	// Mock implementation - always returns true for testing
-	return true
+func (m *MockPlayerControllerExt) Skip() {
+	// Mock implementation
 }
 
 func (m *MockPlayerControllerExt) SkipChan() <-chan struct{} {
@@ -86,6 +86,26 @@ func (m *MockPlayerControllerExt) SkipChan() <-chan struct{} {
 func (m *MockPlayerControllerExt) Done() <-chan struct{} {
 	// Mock implementation - returns nil channel for testing
 	return nil
+}
+
+func (m *MockPlayerControllerExt) GetLoopMode() player.LoopMode {
+	return m.loopMode
+}
+
+func (m *MockPlayerControllerExt) SetLoopMode(mode player.LoopMode) {
+	m.loopMode = mode
+}
+
+func (m *MockPlayerControllerExt) ToggleLoopMode() player.LoopMode {
+	switch m.loopMode {
+	case player.LoopOff:
+		m.loopMode = player.LoopSingle
+	case player.LoopSingle:
+		m.loopMode = player.LoopQueue
+	case player.LoopQueue:
+		m.loopMode = player.LoopOff
+	}
+	return m.loopMode
 }
 
 func (m *MockPlayerControllerExt) StartPlayback(ctx context.Context, vc player.VoiceConnection, pipeline player.AudioPipeline) error {

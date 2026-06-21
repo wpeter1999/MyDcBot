@@ -10,5 +10,6 @@ var CommandRegistry = []*BotCommand{
 	StopCommand,
 	NowPlayingCommand,
 	DownloadCommand,
-	HelpCommand, // 新增 help 指令
+	LoopCommand,   // 新增 loop 指令
+	HelpCommand,   // help 指令
 }
